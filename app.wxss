@@ -1,0 +1,42 @@
+/* 全局样式
+   规矩：优先用小程序自带组件的默认观感（app.json 里的 "style": "v2" 已经是 WeUI 2.0），
+   不要急着覆盖它。这里只定义配色与间距，方便后面统一改。 */
+
+page {
+  --c-bg: #f7f7f7;
+  --c-card: #ffffff;
+  --c-text: #1a1a1a;
+  --c-text-2: #6b6b6b;
+  --c-text-3: #9a9a9a;
+  --c-line: rgba(0, 0, 0, 0.08);
+  --c-accent: #1f9d55;
+  --c-mark: #e8a33d;
+
+  --sp-1: 8rpx;
+  --sp-2: 16rpx;
+  --sp-3: 24rpx;
+  --sp-4: 32rpx;
+  --sp-5: 48rpx;
+
+  --r-md: 16rpx;
+  --r-lg: 24rpx;
+
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 28rpx;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.text-2 {
+  color: var(--c-text-2);
+}
+
+.text-3 {
+  color: var(--c-text-3);
+}

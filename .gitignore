@@ -1,0 +1,12 @@
+.workbuddy/
+node_modules/
+miniprogram_npm/
+.DS_Store
+*.log
+.env
+.env.*
+project.private.config.json
+
+# 预览工具的产物（内容是代码 + 内嵌图片，跑一次就能重新生成，不入库）
+tools/preview-card.html
+tools/preview-card-*.svg

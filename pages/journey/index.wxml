@@ -1,0 +1,106 @@
+<view class="page">
+
+  <view class="bar">
+    <text class="bar__left">{{shotProgress}}</text>
+    <text class="bar__right">{{totalHint}}</text>
+  </view>
+
+  <view class="stage" bindtap="onStageTap">
+    <image class="stage__img" src="{{shot.image}}" mode="widthFix" lazy-load="{{false}}" />
+
+    <block wx:for="{{hooks}}" wx:key="id">
+      <!-- 按住时：把已经标出来的那几处盖掉，商品和价格留下。
+           盖子是实心的（用页面底色），因为它要替你说「这里本来有东西」。 -->
+      <view
+        wx:if="{{item.covered}}"
+        class="cover"
+        style="{{item.style}}"
+        catchtap="onCoverTap"
+      ></view>
+      <!-- 还没找到的：只留一块透明热区。看得见就没有「找」的意义了 -->
+      <view
+        wx:elif="{{item.hidden}}"
+        class="hit"
+        style="{{item.style}}"
+        data-id="{{item.id}}"
+        data-order="{{item.order}}"
+        catchtap="onHitTap"
+      ></view>
+      <!-- 已经标出来的：带编号的框，点它把对应卡片切过来 -->
+      <view
+        wx:elif="{{item.revealed}}"
+        class="mark"
+        style="{{item.style}}"
+        data-order="{{item.order}}"
+        catchtap="onMarkTap"
+      >
+        <text class="mark__no">{{item.order}}</text>
+      </view>
+    </block>
+
+    <!-- 点破差异的那句话：压在图上，不占版面。
+         它落在刚才那几处消失的位置附近，眼睛不用挪开。
+         只让东西「灰掉」不够 —— 得给差异一个名字。 -->
+    <view class="banner" wx:if="{{holdBanner}}">
+      <text class="banner__text">{{holdBanner}}</text>
+    </view>
+  </view>
+
+  <view
+    class="hold {{holdReady ? '' : 'hold--off'}} {{holding ? 'hold--on' : ''}}"
+    bindtouchstart="onHoldStart"
+    bindtouchend="onHoldEnd"
+    bindtouchcancel="onHoldEnd"
+  >
+    <text class="hold__label">{{holdBtnLabel}}</text>
+  </view>
+
+  <!-- 这行小字高度常驻（按住时为空也不塌），免得按住的瞬间整页往下跳 -->
+  <view class="hold__hint">
+    <text class="hold__hint-text">{{holdHint}}</text>
+  </view>
+
+  <view class="hint" wx:if="{{hint}}">
+    <text class="hint__text">{{hint}}</text>
+    <text class="hint__action" bindtap="onRevealNext">{{skipLabel}}</text>
+  </view>
+
+  <swiper
+    class="cards"
+    current="{{cardIndex}}"
+    bindchange="onCardChange"
+    indicator-dots="{{false}}"
+    duration="{{200}}"
+  >
+    <swiper-item wx:for="{{hooks}}" wx:key="id">
+      <view
+        class="card {{item.revealed ? 'card--on' : ''}} {{item.hidden ? 'card--hidden' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="onCardTap"
+      >
+        <view class="card__head">
+          <text class="card__name">{{item.hidden ? '第 ' + item.order + ' 处' : item.name}}</text>
+          <text class="card__state">{{item.state}}</text>
+        </view>
+        <text class="card__note">{{item.note}}</text>
+      </view>
+    </swiper-item>
+  </swiper>
+
+  <view class="foot">
+    <view class="foot__row">
+      <text class="foot__progress">已标出 {{hookProgress}}</text>
+      <text
+        wx:if="{{!isLastShot}}"
+        class="foot__next"
+        bindtap="onNextShot"
+      >下一张 ›</text>
+      <text wx:else class="foot__next foot__next--off">三段示例已看完</text>
+    </view>
+    <!-- 这一行常驻（还没标出时只是灰的），免得卡片入口忽然冒出来把页面顶一下 -->
+    <view class="foot__row foot__make {{canMakeCard ? '' : 'foot__make--off'}}" bindtap="onMakeCard">
+      <text class="foot__make-text">{{canMakeCard ? '生成一张卡片 ›' : '标出一处后可以做成卡片'}}</text>
+    </view>
+  </view>
+
+</view>

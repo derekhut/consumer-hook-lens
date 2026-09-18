@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "pages/journey/index",
+    "pages/card/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "看清消费",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f7f7",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

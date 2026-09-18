@@ -1,0 +1,100 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: var(--sp-4) 0 var(--sp-5);
+  box-sizing: border-box;
+}
+
+.card-canvas {
+  display: block;
+  border-radius: var(--r-lg);
+  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.06);
+}
+
+/* 生成中、失败：都要说清楚现在是什么状态，不要一直转圈 */
+.loading,
+.failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 0 var(--sp-5);
+}
+
+.loading__text {
+  font-size: 28rpx;
+  color: var(--c-text-2);
+}
+
+.failed__title {
+  font-size: 32rpx;
+  font-weight: 500;
+}
+
+.failed__msg {
+  margin-top: var(--sp-2);
+  font-size: 26rpx;
+  color: var(--c-text-2);
+  text-align: center;
+}
+
+.failed__acts {
+  display: flex;
+  margin-top: var(--sp-4);
+}
+
+.failed__retry,
+.failed__enter {
+  font-size: 28rpx;
+  padding: 0 var(--sp-3);
+}
+
+.failed__retry {
+  color: var(--c-accent);
+}
+
+.failed__enter {
+  color: var(--c-text-3);
+}
+
+/* 两个动作 */
+.acts {
+  display: flex;
+  width: 100%;
+  padding: var(--sp-4) var(--sp-4) 0;
+  box-sizing: border-box;
+}
+
+.act {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  height: 88rpx;
+  line-height: 88rpx;
+  font-size: 28rpx;
+  border-radius: var(--r-lg);
+  background: var(--c-card);
+  color: var(--c-text);
+  border: 1rpx solid var(--c-line);
+}
+
+/* 主次分明：转发是主按钮（不弹任何授权），存相册是次要的 */
+.act--main {
+  background: var(--c-accent);
+  color: #ffffff;
+  border-color: var(--c-accent);
+  margin-right: var(--sp-3);
+}
+
+.act::after {
+  border: none;
+}
+
+.enter {
+  margin-top: var(--sp-4);
+  font-size: 26rpx;
+  color: var(--c-accent);
+}

@@ -1,0 +1,30 @@
+<view class="page">
+
+  <view class="loading" wx:if="{{state === 'loading'}}">
+    <text class="loading__text">正在生成卡片…</text>
+  </view>
+
+  <view class="failed" wx:elif="{{state === 'failed'}}">
+    <text class="failed__title">没做成卡片</text>
+    <text class="failed__msg">{{message}}</text>
+    <view class="failed__acts">
+      <text class="failed__retry" bindtap="onRetry">再试一次</text>
+      <text class="failed__enter" bindtap="onEnter">回去看看</text>
+    </view>
+  </view>
+
+  <block wx:else>
+    <!-- 这张画布上的每个像素都由 utils/card.js 算好，这里只负责画 -->
+    <canvas id="card" type="2d" class="card-canvas" style="{{canvasStyle}}"></canvas>
+
+    <view class="acts">
+      <!-- 转发不需要任何授权，所以它是主按钮 -->
+      <button class="act act--main" open-type="share">转发给好友</button>
+      <!-- 存相册会弹系统授权，所以它是次要动作 -->
+      <button class="act" bindtap="onSave">保存到相册</button>
+    </view>
+
+    <text class="enter" bindtap="onEnter">我也去读一张自己的图 ›</text>
+  </block>
+
+</view>

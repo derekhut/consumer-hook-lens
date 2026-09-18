@@ -1,0 +1,261 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-bottom: var(--sp-3);
+  box-sizing: border-box;
+}
+
+/* 顶部：外层进度 + 总量提示 */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4) var(--sp-1);
+}
+
+.bar__left {
+  font-size: 26rpx;
+  color: var(--c-text-2);
+}
+
+.bar__right {
+  font-size: 26rpx;
+  color: var(--c-text-3);
+}
+
+/* 截图 + 标注层
+   注意：.stage 的高度由图片撑出来（宽度固定、mode=widthFix），
+   所以子元素用百分比定位就能严丝合缝地贴在图上 —— 这是归一化坐标能生效的地方。 */
+.stage {
+  position: relative;
+  width: 82%;
+  margin: var(--sp-1) auto 0;
+}
+
+.stage__img {
+  display: block;
+  width: 100%;
+  border-radius: var(--r-md);
+}
+
+.mark {
+  position: absolute;
+  box-sizing: border-box;
+  border: 3rpx solid var(--c-mark);
+  border-radius: 10rpx;
+  background: rgba(232, 163, 61, 0.16);
+}
+/* 这里**不要**写 transition。按住时 .mark 是被 .cover 整个替换掉的
+   （wx:if / wx:elif 换的是节点），节点都不存在了，CSS 过渡不会跑。
+   写了只会让人以为有淡出效果。瞬间消失反而更准：手指按下去的那一刻，它就没了。 */
+
+/* 还没找到的那几处：热区是透明的，只有点上去才知道自己找没找到 */
+.hit {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* 按住时盖住已标出的那几处。
+   用实心底色而不是「变灰」：它要替你说出「这里本来有东西」，
+   虚线边是为了让「被拿掉了」这件事看得见。 */
+.cover {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2rpx dashed rgba(0, 0, 0, 0.14);
+  border-radius: 10rpx;
+  background: var(--c-bg);
+}
+
+/* 点破差异的横幅：压在图上，绝对定位，长成两行也只多盖一点图，不会顶动整页 */
+.banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  background: rgba(26, 26, 26, 0.86);
+}
+
+.banner__text {
+  font-size: 25rpx;
+  line-height: 1.5;
+  color: #ffffff;
+}
+
+.mark__no {
+  position: absolute;
+  top: -18rpx;
+  left: -18rpx;
+  width: 36rpx;
+  height: 36rpx;
+  line-height: 36rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--c-mark);
+  color: #ffffff;
+  font-size: 22rpx;
+}
+
+/* 按住，只看商品。
+   这是全场唯一有身体参与感的动作：全宽、大目标、绿色（这套演示的主动色），
+   按下的一刻就变色，手指不用等界面的反馈。 */
+.hold {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 92rpx;
+  margin: var(--sp-3) var(--sp-4) 0;
+  border-radius: var(--r-lg);
+  background: var(--c-accent);
+}
+
+.hold--on {
+  background: #17804a;
+}
+
+.hold--off {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.hold__label {
+  font-size: 30rpx;
+  color: #ffffff;
+}
+
+.hold--off .hold__label {
+  color: var(--c-text-3);
+}
+
+/* 高度常驻：按住时这行是空的，但不能塌 —— 塌了整页会在按住的瞬间往下跳 */
+.hold__hint {
+  min-height: 40rpx;
+  padding: 0 var(--sp-4);
+  text-align: center;
+}
+
+.hold__hint-text {
+  font-size: 23rpx;
+  color: var(--c-text-3);
+}
+
+/* 提示行：还有没找到的，以及跳过「自己找」的退路 */
+.hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--sp-3) var(--sp-4) 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: rgba(232, 163, 61, 0.1);
+}
+
+.hint__text {
+  font-size: 26rpx;
+  color: var(--c-text-2);
+}
+
+.hint__action {
+  font-size: 26rpx;
+  color: var(--c-accent);
+  padding-left: var(--sp-3);
+}
+
+/* 底部卡片：左右滑动切换。swiper 必须有固定高度 */
+.cards {
+  height: 210rpx;
+  margin: var(--sp-3) var(--sp-4) 0;
+}
+
+.card {
+  box-sizing: border-box;
+  height: 100%;
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--c-card);
+  border: 1rpx solid var(--c-line);
+}
+
+.card--on {
+  border-color: var(--c-mark);
+}
+
+/* 还没找到的那张卡：虚线边，一眼看出「它还是个问号」 */
+.card--hidden {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.card__name {
+  font-size: 34rpx;
+  font-weight: 500;
+}
+
+.card__state {
+  font-size: 22rpx;
+  color: var(--c-text-3);
+}
+
+.card__note {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: 27rpx;
+  line-height: 1.55;
+  color: var(--c-text-2);
+}
+
+/* 底部：内层进度 + 下一张 + 卡片入口 */
+.foot {
+  padding: var(--sp-2) var(--sp-4) 0;
+}
+
+.foot__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.foot__progress {
+  font-size: 24rpx;
+  color: var(--c-text-3);
+}
+
+.foot__next {
+  font-size: 26rpx;
+  color: var(--c-accent);
+}
+
+.foot__next--off {
+  color: var(--c-text-3);
+}
+
+/* 卡片入口。它是这一屏的落点，所以给一条淡边界，让它看起来像"可以按" */
+.foot__make {
+  justify-content: center;
+  height: 64rpx;
+  margin-top: var(--sp-2);
+  border: 1rpx solid var(--c-accent);
+  border-radius: var(--r-md);
+}
+
+.foot__make-text {
+  font-size: 26rpx;
+  color: var(--c-accent);
+}
+
+/* 还没标出任何一处时：灰掉，但高度不变 */
+.foot__make--off {
+  border-color: var(--c-line);
+}
+
+.foot__make--off .foot__make-text {
+  color: var(--c-text-3);
+}
