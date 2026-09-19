@@ -3,6 +3,7 @@ const { getHookPattern } = require('../../utils/hooks');
 const reveal = require('../../utils/reveal');
 const hold = require('../../utils/hold');
 const { rectToStyle } = require('../../utils/annotations');
+const swipe = require('../../utils/swipe');
 
 Page({
   data: {
@@ -11,13 +12,13 @@ Page({
     shot: null,
     hooks: [],
     cardIndex: 0,
-    shotProgress: '',
-    totalHint: '',
     hookProgress: '',
-    hint: '',
+    guide: '',
+    allDone: false,
     skipLabel: '',
     findMode: false,
     isLastShot: false,
+    isFirstShot: true,
     /** 手指正按在按钮上 */
     holding: false,
     /** 至少标出了一处，按住才有意义 */
@@ -37,6 +38,8 @@ Page({
   onLoad() {
     this.revealed = [];
     this.holding = false;
+    /** 每一屏的进度存档：shotIndex → 已揭示的 id 数组。回退时靠它恢复 */
+    this.progressMap = {};
     this.goShot(0);
   },
 
@@ -47,18 +50,25 @@ Page({
       console.error('[journey] 找不到第 ' + index + ' 张示例');
       return;
     }
+    // 离开当前屏前，先把这屏已标出的进度存档 —— 回退时才能原样恢复。
+    // 首次进页（还没有当前屏）不存，存进来的也是空集。
+    if (this.data.shot) {
+      this.progressMap[this.data.shotIndex] = this.revealed.slice();
+    }
     // 换图时按住状态必须清掉，否则新一屏会带着上一屏的盖子进来
     this.holding = false;
-    // 进这一屏时先替用户揭示哪几处，由 mode 决定
-    this.revealed = reveal.initialRevealed(shot.mode, shot.hooks);
+    // 进这一屏：有存档就恢复存档（回退不丢进度），没有才按 mode 初始化。
+    // slice 是防串档：恢复出来的一份，之后怎么点都不会改到存档。
+    const saved = this.progressMap[index];
+    this.revealed = saved ? saved.slice() : reveal.initialRevealed(shot.mode, shot.hooks);
     this.setData(
       {
         shotIndex: index,
         shot: shot,
         cardIndex: 0,
         findMode: reveal.isFindMode(shot.mode),
-        skipLabel: reveal.skipHint(),
-        isLastShot: index === SHOTS.length - 1
+        isLastShot: index === SHOTS.length - 1,
+        isFirstShot: index === 0
       },
       this.refresh
     );
@@ -116,12 +126,15 @@ Page({
     const holdReady = hold.canHold(revealed);
     const caption = hold.holdCaption(shot.hooks, revealed);
 
+    const allDone = reveal.allRevealed(shot.hooks, revealed);
+
     this.setData({
       hooks: hooks,
-      shotProgress: reveal.shotProgressText(this.data.shotIndex, SHOTS.length),
-      totalHint: reveal.totalHint(shot.hooks),
       hookProgress: reveal.hookProgressText(shot.hooks, revealed),
-      hint: reveal.findHint(shot.mode, shot.hooks, revealed),
+      guide: reveal.guideText(shot.mode, shot.hooks, revealed),
+      // 「直接显示」只在还有得找的屏上出现 —— 教学屏没有「找」可跳过
+      skipLabel: reveal.isFindMode(shot.mode) && !allDone ? reveal.skipHint() : '',
+      allDone: allDone,
       holding: holding,
       holdReady: holdReady,
       holdBtnLabel: hold.holdLabel(holding),
@@ -220,6 +233,40 @@ Page({
     const next = this.data.shotIndex + 1;
     if (next >= SHOTS.length) return;
     this.goShot(next);
+  },
+
+  /** 退回上一张。第一张时没有上一张，直接不动（按钮同时是置灰的） */
+  onPrevShot() {
+    const prev = this.data.shotIndex - 1;
+    if (prev < 0) return;
+    this.goShot(prev);
+  },
+
+  // --- 图上左右滑动翻页 ---
+  // 判别逻辑在 utils/swipe.js（纯函数）；这里只记起点、问方向、执行翻页。
+  // touchend 用 changedTouches：手指此刻已经离开，touches 里未必还有它。
+
+  onStageTouchStart(e) {
+    const t = e.touches && e.touches[0];
+    this.touchStart = t ? { x: t.clientX, y: t.clientY } : null;
+  },
+
+  onStageTouchEnd(e) {
+    // 按住看商品时不许翻页，免得一只手按住、另一只手把屏翻了
+    if (this.holding) {
+      this.touchStart = null;
+      return;
+    }
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t || !this.touchStart) return;
+    const dir = swipe.swipeDirection(this.touchStart, { x: t.clientX, y: t.clientY });
+    this.touchStart = null;
+    if (dir === 'left') this.onNextShot();
+    else if (dir === 'right') this.onPrevShot();
+  },
+
+  onStageTouchCancel() {
+    this.touchStart = null;
   },
 
   /** 去生成卡片。只带上这一屏里**已经标出来**的那几处 */

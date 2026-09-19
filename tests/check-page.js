@@ -106,6 +106,11 @@ function coveredOf(inst) {
   return inst.data.hooks.filter(function (h) { return h.covered; }).map(function (h) { return h.id; });
 }
 
+/** 把某张图上已标出的 id 列出来（不管按没按住） */
+function revealedIds(inst) {
+  return inst.data.hooks.filter(function (h) { return h.revealed; }).map(function (h) { return h.id; });
+}
+
 // --- 进场 ---
 
 const page = makePage();
@@ -113,10 +118,16 @@ page.onLoad();
 
 suite.eq('进场停在第一张示例', page.data.shotIndex, 0);
 suite.eq('进场时没在按住', page.data.holding, false);
+suite.eq('进场时「上一张」是置灰的（第一张没有上一张）', page.data.isFirstShot, true);
+toasts.length = 0;
+page.onPrevShot();
+suite.eq('第一张点「上一张」不动', page.data.shotIndex, 0);
 suite.eq('教学屏进场时一处都没标出', page.data.holdReady, false);
 suite.eq('教学屏进场时按钮下面的小字是「先标出一处」', page.data.holdHint, hold.HOLD_LOCKED_TEXT);
 suite.eq('进场时图上没有横幅', page.data.holdBanner, '');
 suite.eq('进场时没有盖子', coveredOf(page).length, 0);
+suite.eq('进场时引导条告诉用户先去点卡片', page.data.guide, '点下面的卡片，看它在图上的哪里');
+suite.eq('教学屏没有「直接显示」退路（没有「找」可跳过）', page.data.skipLabel, '');
 
 // --- 一处都没标出时按住：按下也不动，只给一句提示 ---
 
@@ -205,6 +216,8 @@ page.onHoldEnd();
 // --- 标出两处，那句话要同时点出两个名字 ---
 
 page.onCardTap(tap(null, 'B1'));
+suite.eq('两处都标出后引导条换成「找齐了」的下一步', page.data.guide, '都找齐了。按住上面只看商品，或翻下一张');
+suite.eq('找齐后引导条不再是「点卡片」', page.data.allDone, true);
 page.onHoldStart();
 suite.eq('两处都标出时，两个名字都进横幅',
   page.data.holdBanner, '刚才先跳出来的是「限时倒计时」和「划线价锚定」');
@@ -220,6 +233,8 @@ suite.eq('换屏后没在按住', page.data.holding, false);
 suite.eq('换屏后按钮是可用的（练的那屏进场就替你标了一处）', page.data.holdReady, true);
 suite.eq('换屏后图上没有残留的盖子', coveredOf(page).length, 0);
 suite.eq('换屏后没有残留的横幅', page.data.holdBanner, '');
+suite.eq('练屏的引导条跟着屏型换（还剩一处）', page.data.guide, '还有一处，你觉得在哪？');
+suite.eq('练屏有「直接显示」退路', page.data.skipLabel, '直接显示');
 
 page.onHoldStart();
 suite.eq('在第二屏按住的，只盖第二屏已标出的那一处', coveredOf(page), ['C3']);
@@ -238,6 +253,60 @@ suite.eq('按住时换屏后停在第三张', page.data.shotIndex, 2);
 page.onNextShot();
 suite.eq('最后一屏再点「下一张」不动', page.data.shotIndex, 2);
 suite.eq('最后一屏自己知道是最后一屏', page.data.isLastShot, true);
+
+// --- 回退：上一张，进度不丢 ---
+// 回退的意义全在「回去时东西还在」：goShot 若还是进屏即重置，
+// 按钮就算加上了也只是「回去重做一遍」，那不是回退。
+
+page.onPrevShot();
+suite.eq('第三屏点「上一张」回到第二张', page.data.shotIndex, 1);
+suite.eq('回退到第二屏，之前标出的 C3 原样还在', revealedIds(page), ['C3']);
+suite.eq('回退后按住照常可用', page.data.holdReady, true);
+suite.eq('回退后图上没有残留的盖子', coveredOf(page).length, 0);
+suite.eq('回退后没有残留的横幅', page.data.holdBanner, '');
+
+page.onPrevShot();
+suite.eq('再退回到第一张', page.data.shotIndex, 0);
+suite.eq('回退到第一屏，A1、B1 都还在', revealedIds(page), ['A1', 'B1']);
+
+page.onPrevShot();
+suite.eq('第一张再点「上一张」不动', page.data.shotIndex, 0);
+suite.eq('第一张自己知道是第一张', page.data.isFirstShot, true);
+
+// 回退后再前进：恢复的是存档，不是重新初始化
+page.onNextShot();
+suite.eq('回退后再前进，第二屏的进度原样还原', revealedIds(page), ['C3']);
+page.onNextShot();
+suite.eq('再前进到第三屏，放手屏的存档是空集（离开时一处都没标）', revealedIds(page), []);
+
+// --- 图上左右滑动翻页 ---
+// 滑动 = touchstart 记起点、touchend 问方向。判别逻辑在 utils/swipe.js，这里测链路。
+
+page.onStageTouchStart({ touches: [{ clientX: 300, clientY: 400 }] });
+page.onStageTouchEnd({ changedTouches: [{ clientX: 180, clientY: 400 }] });
+suite.eq('最后一屏向左滑，没有下一张，原地不动', page.data.shotIndex, 2);
+
+page.onStageTouchStart({ touches: [{ clientX: 200, clientY: 400 }] });
+page.onStageTouchEnd({ changedTouches: [{ clientX: 320, clientY: 400 }] });
+suite.eq('图上向右滑一记，退回上一张', page.data.shotIndex, 1);
+suite.eq('滑动翻页同样保留进度（和按钮回退走同一条 goShot）', revealedIds(page), ['C3']);
+
+const beforeSmallMove = page.data.shotIndex;
+page.onStageTouchStart({ touches: [{ clientX: 200, clientY: 400 }] });
+page.onStageTouchEnd({ changedTouches: [{ clientX: 230, clientY: 400 }] });
+suite.eq('短距离的挪动不算滑，不翻页', page.data.shotIndex, beforeSmallMove);
+
+page.onStageTouchStart({ touches: [{ clientX: 200, clientY: 400 }] });
+page.onStageTouchCancel();
+page.onStageTouchEnd({ changedTouches: [{ clientX: 80, clientY: 400 }] });
+suite.eq('被打断的触摸（touchcancel 之后）不再判方向', page.data.shotIndex, beforeSmallMove);
+
+page.onHoldStart();
+page.onStageTouchStart({ touches: [{ clientX: 300, clientY: 400 }] });
+page.onStageTouchEnd({ changedTouches: [{ clientX: 180, clientY: 400 }] });
+suite.eq('按住看商品时滑动不翻页', page.data.shotIndex, 1);
+suite.eq('按住态也没有被滑动破坏', page.data.holding, true);
+page.onHoldEnd();
 
 // --- 卡片入口 ---
 // 门只有一道：至少标出一处。开得太早会做出空卡片，开得太晚用户以为没这功能。

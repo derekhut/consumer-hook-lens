@@ -83,11 +83,6 @@ function toggleRevealed(revealed, hookId) {
   return list;
 }
 
-/** 外层进度：第几张示例图 */
-function shotProgressText(shotIndex, shotTotal) {
-  return '示例 ' + (shotIndex + 1) + ' / ' + shotTotal;
-}
-
 /** 内层进度：这张图里已揭示几处 */
 function hookProgressText(hooks, revealed) {
   if (!Array.isArray(hooks)) return '0 / 0';
@@ -114,15 +109,20 @@ function wrongTapHint() {
   return '看看这里的作用';
 }
 
+/**
+ * 引导条的话：这一步该干什么。按屏型和进度给，不判断对错。
+ * 它是第一次打开的人唯一的说明书 —— 每一屏、每一步都得有一句。
+ * 三种话各管一步：教学屏说从哪开始，找的模式说还剩几处，找齐了说下一步。
+ */
+function guideText(mode, hooks, revealed) {
+  if (!Array.isArray(hooks) || hooks.length === 0) return '';
+  if (allRevealed(hooks, revealed)) return '都找齐了。按住上面只看商品，或翻下一张';
+  if (isFindMode(mode)) return findHint(mode, hooks, revealed);
+  return '点下面的卡片，看它在图上的哪里';
+}
 /** 想跳过「自己找」时的退路。没有它，找不到就卡住了 */
 function skipHint() {
   return '直接显示';
-}
-
-/** 总量提示：这张图里一共有几处 */
-function totalHint(hooks) {
-  if (!Array.isArray(hooks) || hooks.length === 0) return '';
-  return '这张图里有 ' + hooks.length + ' 处';
 }
 
 module.exports = {
@@ -135,10 +135,9 @@ module.exports = {
   allRevealed: allRevealed,
   nextUnrevealed: nextUnrevealed,
   toggleRevealed: toggleRevealed,
-  shotProgressText: shotProgressText,
   hookProgressText: hookProgressText,
   findHint: findHint,
   wrongTapHint: wrongTapHint,
   skipHint: skipHint,
-  totalHint: totalHint
+  guideText: guideText
 };

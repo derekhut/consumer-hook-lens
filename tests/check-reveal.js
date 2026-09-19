@@ -39,13 +39,10 @@ suite.eq('toggle 不会改动传进来的数组', (function () {
   return original;
 })(), ['C3']);
 
-// --- 进度文案：两级必须分得清 ---
+// --- 进度文案 ---
 
-suite.eq('外层进度写第几张图', reveal.shotProgressText(0, 3), '示例 1 / 3');
-suite.eq('外层进度写第几张图（第三张）', reveal.shotProgressText(2, 3), '示例 3 / 3');
 suite.eq('内层进度写图内第几处', reveal.hookProgressText(HOOKS, []), '0 / 2');
 suite.eq('内层进度写图内第几处（已揭示一处）', reveal.hookProgressText(HOOKS, ['C3']), '1 / 2');
-suite.eq('内外两级不会混成一套数字', reveal.shotProgressText(1, 3) !== reveal.hookProgressText(HOOKS, ['C3']), true);
 
 // --- 提示语 ---
 
@@ -55,8 +52,14 @@ suite.eq('教学模式下不给找的提示', reveal.findHint('reveal', HOOKS, [
 suite.eq('都找到了就不再提示', reveal.findHint('find-one', HOOKS, ['C3', 'D1']), '');
 suite.eq('点错的提示不判错、不带惩罚', reveal.wrongTapHint(), '看看这里的作用');
 suite.eq('跳过「自己找」的退路始终存在', reveal.skipHint(), '直接显示');
-suite.eq('总量提示不泄露是第几处', reveal.totalHint(HOOKS), '这张图里有 2 处');
-suite.eq('没有陷阱时总量提示为空', reveal.totalHint([]), '');
+
+// --- 引导条：这一步该干什么（第一次打开的人唯一的说明书） ---
+
+suite.eq('教学模式引导先去点卡片', reveal.guideText('reveal', HOOKS, []), '点下面的卡片，看它在图上的哪里');
+suite.eq('练模式引导接着找', reveal.guideText('find-one', HOOKS, ['C3']), '还有一处，你觉得在哪？');
+suite.eq('找齐了引导去按住或翻页', reveal.guideText('find-one', HOOKS, ['C3', 'D1']), '都找齐了。按住上面只看商品，或翻下一张');
+suite.eq('教学模式找齐了同样给下一步', reveal.guideText('reveal', HOOKS, ['C3', 'D1']), '都找齐了。按住上面只看商品，或翻下一张');
+suite.eq('没有陷阱时不给引导', reveal.guideText('reveal', [], []), '');
 
 // --- 三档模式：教 → 练 → 放手 ---
 
@@ -87,7 +90,7 @@ suite.noThrow('空数组不崩', function () {
   reveal.allRevealed([], []);
   reveal.hookProgressText([], []);
   reveal.findHint('find-all', [], []);
-  reveal.totalHint([]);
+  reveal.guideText('reveal', null, null);
 });
 
 suite.noThrow('脏数据不崩（null / undefined / 字符串）', function () {

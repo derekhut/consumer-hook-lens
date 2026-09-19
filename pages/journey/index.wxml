@@ -1,11 +1,13 @@
 <view class="page">
 
-  <view class="bar">
-    <text class="bar__left">{{shotProgress}}</text>
-    <text class="bar__right">{{totalHint}}</text>
-  </view>
-
-  <view class="stage" bindtap="onStageTap">
+  <!-- 图上左右滑动翻页：判别在 utils/swipe.js。touchcancel（来电等打断）当作没滑 -->
+  <view
+    class="stage"
+    bindtap="onStageTap"
+    bindtouchstart="onStageTouchStart"
+    bindtouchend="onStageTouchEnd"
+    bindtouchcancel="onStageTouchCancel"
+  >
     <image class="stage__img" src="{{shot.image}}" mode="widthFix" lazy-load="{{false}}" />
 
     <block wx:for="{{hooks}}" wx:key="id">
@@ -44,6 +46,22 @@
     <view class="banner" wx:if="{{holdBanner}}">
       <text class="banner__text">{{holdBanner}}</text>
     </view>
+
+    <!-- 左右翻页箭头：贴屏幕两侧边缘、图的垂直中点。
+         stage 只有 82% 宽，两侧各约 9% 空白 —— 箭头就住在那里，不压图不挡热区。
+         首末两张时置灰；点了没反应由 onPrevShot / onNextShot 的边界守卫兜住。 -->
+    <view
+      class="stage-nav stage-nav--prev {{isFirstShot ? 'stage-nav--off' : ''}}"
+      catchtap="onPrevShot"
+    >
+      <text class="stage-nav__arrow">‹</text>
+    </view>
+    <view
+      class="stage-nav stage-nav--next {{isLastShot ? 'stage-nav--off' : ''}}"
+      catchtap="onNextShot"
+    >
+      <text class="stage-nav__arrow">›</text>
+    </view>
   </view>
 
   <view
@@ -60,9 +78,10 @@
     <text class="hold__hint-text">{{holdHint}}</text>
   </view>
 
-  <view class="hint" wx:if="{{hint}}">
-    <text class="hint__text">{{hint}}</text>
-    <text class="hint__action" bindtap="onRevealNext">{{skipLabel}}</text>
+  <!-- 引导条：第一次打开的人唯一的说明书。常驻、高亮，每一步都说清下一步干什么 -->
+  <view class="guide {{allDone ? 'guide--done' : ''}}" wx:if="{{guide}}">
+    <text class="guide__text">{{guide}}</text>
+    <text class="guide__action" wx:if="{{skipLabel}}" bindtap="onRevealNext">{{skipLabel}}</text>
   </view>
 
   <swiper
@@ -90,12 +109,8 @@
   <view class="foot">
     <view class="foot__row">
       <text class="foot__progress">已标出 {{hookProgress}}</text>
-      <text
-        wx:if="{{!isLastShot}}"
-        class="foot__next"
-        bindtap="onNextShot"
-      >下一张 ›</text>
-      <text wx:else class="foot__next foot__next--off">三段示例已看完</text>
+      <!-- 翻页入口已移到图两侧的箭头；最后一屏时在这里给一句收尾 -->
+      <text wx:if="{{isLastShot}}" class="foot__progress">三段示例已看完</text>
     </view>
     <!-- 这一行常驻（还没标出时只是灰的），免得卡片入口忽然冒出来把页面顶一下 -->
     <view class="foot__row foot__make {{canMakeCard ? '' : 'foot__make--off'}}" bindtap="onMakeCard">
