@@ -34,7 +34,7 @@ function walk(dir, out) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   entries.forEach(function (e) {
     const full = path.join(dir, e.name);
-    const rel = path.relative(ROOT, full);
+    const rel = path.relative(ROOT, full).split(path.sep).join('/');
     if (e.isDirectory()) {
       if (SKIP_DIR.indexOf(e.name) !== -1) return;
       walk(full, out);
