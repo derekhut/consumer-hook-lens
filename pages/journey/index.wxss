@@ -177,7 +177,11 @@
   font-size: 28rpx;
   line-height: 1.5;
   font-weight: 500;
-  color: var(--c-text-1);
+  /* 这里原本写的是 var(--c-text-1)，而 app.wxss 里根本没有这个变量 ——
+     颜色一直是"继承"来的，凑巧继承到 --c-text 的深色，所以没人发现。
+     一旦有人改了 page 的文字色，引导条就会阴差阳错地跟着变，而且改的人
+     不会想到根因在这一行。做视觉稿时照着色板对，一眼就看出来了。 */
+  color: var(--c-text);
 }
 
 .guide--done {
