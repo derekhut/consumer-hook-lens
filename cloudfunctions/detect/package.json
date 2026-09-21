@@ -1,0 +1,10 @@
+{
+  "name": "detect",
+  "version": "1.0.0",
+  "description": "识别云函数：截图 -> 多模态模型 -> 原始标注",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest",
+    "@cloudbase/node-sdk": "^3.16.0"
+  }
+}
