@@ -178,4 +178,40 @@ Object.keys(docs).forEach(function (name) {
 });
 suite.eq('文档里没有声称「本项目的 appid 就是占位值」', placeholderClaims, []);
 
+// --- 会变的值（之二）：云开发环境 ID 同样不许复述 ---
+//
+// 环境 ID 和 appid 是同一性质的东西：它属于**本项目的配置**，只在 `app.js` 里写一遍。
+// 文档里复述一份，换环境时没人想得起去改它 —— 而文档里多出来的那个值恰恰是
+// 读者最信的那个（他没法跑起来验证，只能信文档）。
+//
+// 实测漂了一处：TODO 阶段 7 那句「环境 ID `cloud1-…` 已填进 app.js」。
+// 这句话里真正有用的是「已填进 app.js」这个**指路**，具体值一个字都不必写。
+//
+// 这里只按形状扫（`cloud1-` 开头），**不把具体值写进测试** ——
+// 把值抄进测试文件等于又开了一个副本，守卫自己先漂了。
+const ENV_SHAPE = /cloud1-[a-z0-9]{8,}/;
+
+// 只扫「给人看的、会被人照着改配置」的那几份文档
+const driftDocs = ['TODO.md', 'README.md', 'WORKFLOW.md', 'ONBOARDING.md'];
+const envRestated = [];
+driftDocs.forEach(function (name) {
+  const text = readDoc(name);
+  if (!text) return;
+  text.split('\n').forEach(function (line, i) {
+    if (ENV_SHAPE.test(line)) {
+      envRestated.push(name + ' 第 ' + (i + 1) + ' 行：' + line.trim());
+    }
+  });
+});
+suite.eq('文档里没有复述云开发环境 ID（值只在 app.js 里写一遍）', envRestated, []);
+
+// 反过来确认上面那条守卫不是空的：app.js 里确实得有一个环境 ID。
+// 没有这条，守卫会在「有人把 app.js 那行删了」时**更绿**（没值可扫，自然没漂）。
+const appSource = readDoc('app.js');
+suite.ok('app.js 里确实写着一个云开发环境 ID（否则上面那条守卫是空的）', ENV_SHAPE.test(appSource));
+
+// 顺带：这个环境 ID 必须真的被 wx.cloud.init 用上，不能只是躺着。
+// 「配了但没接上」是这一类配置最常见的失败方式，而且跑测试不会报错。
+suite.ok('app.js 里把环境 ID 交给了 wx.cloud.init', /wx\.cloud\.init\s*\(\s*\{[^}]*env:\s*CLOUD_ENV/.test(appSource));
+
 suite.done();
