@@ -1,0 +1,112 @@
+/* 主页样式。配色/间距全部走 app.wxss 的变量，不另起一套 */
+
+/* 顶部：名字是全页最大的字，slogan 紧贴着它 —— 这两行就是产品的自我介绍 */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+}
+
+.hero__name {
+  font-size: 64rpx;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: 4rpx;
+}
+
+.hero__slogan {
+  margin-top: var(--sp-2);
+  font-size: 30rpx;
+  color: var(--c-text-2);
+}
+
+.hero__sub {
+  margin-top: var(--sp-1);
+  font-size: 26rpx;
+  color: var(--c-text-3);
+}
+
+/* 中段：三步说明。数字用主题绿的浅底圆片，一眼能读出顺序 */
+.steps {
+  margin: 0 var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--c-card);
+  border-radius: var(--r-lg);
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+}
+
+.step + .step {
+  margin-top: var(--sp-4);
+}
+
+.step__no {
+  flex: none;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: rgba(31, 157, 85, 0.12);
+  color: var(--c-accent);
+  font-size: 26rpx;
+  font-weight: 700;
+  text-align: center;
+  line-height: 48rpx;
+}
+
+.step__body {
+  margin-left: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+}
+
+.step__title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.step__desc {
+  margin-top: 4rpx;
+  font-size: 26rpx;
+  color: var(--c-text-2);
+  line-height: 1.5;
+}
+
+/* 底部：主入口全宽醒目；上传入口置灰但保留 —— 让人知道它存在，只是还没到 */
+.entry {
+  margin: var(--sp-5) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.entry__main {
+  background: var(--c-accent);
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 700;
+  border-radius: var(--r-md);
+}
+
+.entry__upload {
+  margin-top: var(--sp-3);
+  background: var(--c-card);
+  color: var(--c-text-3);
+  font-size: 28rpx;
+  border-radius: var(--r-md);
+}
+
+/* 小程序 button 自带边框，禁用态下也要压住它 */
+.entry__upload[disabled] {
+  color: var(--c-text-3);
+  background: var(--c-card);
+}
+
+.entry__badge {
+  margin-left: var(--sp-2);
+  font-size: 22rpx;
+  color: var(--c-mark);
+}
