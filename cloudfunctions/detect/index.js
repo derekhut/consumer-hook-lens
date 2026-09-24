@@ -20,14 +20,21 @@ const { buildDetectPrompt } = require('./lib/prompt');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 /**
- * 模型名只写这一处。
+ * 提供商与模型名只写这两处。
  *
- * ⚠️ **必须选支持图片输入的模型**。云开发里免费的体验模型（混元 hy3）是纯文本模型，
- * 传图片进去会被忽略或直接报错 —— 表现是「云函数成功返回，但一条标注都没有」，
- * 很容易被误判成「模型看不出问题」。可用的多模态模型：
- * glm-5v-turbo / qwen3.5-plus / kimi-k2.6 / kimi-k2.5。
+ * PROVIDER = 'cloudbase'（云开发内置模型，当前环境就能用，不用升级标准版）。
+ * 第三方自定义提供商（如阿里云百炼）要升级标准版才能接入，**暂不采用**；
+ * 以后若升级了，把这里改成控制台的提商标识（如 'custom-dashscope'）即可，其余代码不动。
+ *
+ * MODEL = **glm-5.3-flash**（已定，2026-09-22）。
+ * 选型：控制台「生文模型 → 视觉理解」筛出来的三个里（glm-5.3-flash / kimi-k3 / kimi-k2.8-preview），
+ * 它最便宜（输入 800 / 输出 2.8k 资源点·百万tokens）、flash 档快 —— 读促销截图不需要更大的模型。
+ * ⚠️ 前提：控制台里该模型的**状态开关已打开**（不开的模型调不通）。
+ * 纯文本模型（如 hy3）收图会被忽略或报错 —— 表现是「云函数成功返回，但一条标注都没有」，
+ * 很容易被误判成「模型看不出问题」。
  */
-const MODEL = 'glm-5v-turbo';
+const PROVIDER = 'cloudbase';
+const MODEL = 'glm-5.3-flash';
 
 exports.main = async function (event) {
   const fileID = event && event.fileID;
@@ -50,16 +57,24 @@ exports.main = async function (event) {
     return { source: 'fallback', annotations: [], failed: true, reason: 'temp-url-failed' };
   }
 
-  // 凭证由云函数环境自动注入，不需要在代码里放任何 Key
-  const app = tcb.init({ env: tcb.SYMBOL_CURRENT_ENV });
+  // 凭证由云开发控制台保管（添加提供商时填的 API Key），代码里不出现任何 Key
+  const app = tcb.init({
+    env: tcb.SYMBOL_CURRENT_ENV,
+    // ⚠️ SDK 的请求超时默认只有 15 秒，实测 glm-5.3-flash 读一张截图要 25 秒以上。
+    // 函数上限是 60 秒（1~60），塞不下两次 27 秒的重试 —— 所以单次直接给 55 秒，
+    // 重试层关掉（maxAttempts: 1），把预算全部押在一次完整的模型调用上。
+    timeout: 55000
+  });
   const ai = app.ai();
-  const model = ai.createModel('cloudbase');
+  const model = ai.createModel(PROVIDER);
   const prompt = buildDetectPrompt();
 
   const result = await runDetect({
     callModel: async function () {
       const res = await model.generateText({
         model: MODEL,
+        // 注：试过给 glm 传 thinking:{type:'disabled'} 关深度思考，网关不认识该字段直接 400，
+        // 已撤。慢的问题靠压小图片 + （备选）换模型解决。
         messages: [
           {
             role: 'user',
@@ -72,6 +87,8 @@ exports.main = async function (event) {
       });
       return res && res.text;
     },
+    // 函数 60 秒上限塞不下第二次重试，只做一次完整调用（见上方 timeout 注释）
+    maxAttempts: 1,
     log: function (level, message, detail) {
       if (level === 'error') console.error('[detect] ' + message, detail || '');
       else console.warn('[detect] ' + message, detail || '');

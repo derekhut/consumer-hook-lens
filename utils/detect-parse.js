@@ -176,7 +176,7 @@ function parseAnnotations(raw, options) {
  * **能被脚本守住**，而不是只写在文档里。
  */
 function sourceNotice(source) {
-  if (source === SOURCE.FALLBACK) return '这张图没读出来，先看看示例';
+  if (source === SOURCE.FALLBACK) return '这张图没读出来';
   return null;
 }
 

@@ -1,8 +1,19 @@
 <view class="page">
 
-  <!-- 图上左右滑动翻页：判别在 utils/swipe.js。touchcancel（来电等打断）当作没滑 -->
+  <!-- 第四屏还没选图：选图块替代舞台。三段示例永远走不到这里 -->
+  <view class="own-pick" wx:if="{{isOwn && ownState === 'pick'}}" bindtap="onPickImage">
+    <text class="own-pick__title">选一张你自己的截图</text>
+    <text class="own-pick__hint">购物、支付、活动页都行</text>
+    <view class="own-pick__btn">
+      <text class="own-pick__btn-text">从相册选，或拍一张</text>
+    </view>
+  </view>
+
+  <!-- 图上左右滑动翻页：判别在 utils/swipe.js。touchcancel（来电等打断）当作没滑。
+       第四屏选图态不渲染舞台（这里用取反条件而不是 wx:else，中间隔着注释也不怕断链） -->
   <view
     class="stage"
+    wx:if="{{!(isOwn && ownState === 'pick')}}"
     bindtap="onStageTap"
     bindtouchstart="onStageTouchStart"
     bindtouchend="onStageTouchEnd"
@@ -64,6 +75,24 @@
     </view>
   </view>
 
+  <!-- 第四屏失败态：一句真话 + 两个出口。它站在引导条的位置说话，
+       引导条此时是空的 —— 两处同时开口会互相抢 -->
+  <view class="own-failed" wx:if="{{isOwn && ownNotice}}">
+    <text class="own-failed__title">{{ownNotice.title}}</text>
+    <text class="own-failed__hint" wx:if="{{ownNotice.hint}}">{{ownNotice.hint}}</text>
+    <view class="own-failed__actions">
+      <view
+        class="own-failed__btn"
+        wx:for="{{ownNotice.actions}}"
+        wx:key="key"
+        data-key="{{item.key}}"
+        bindtap="onOwnAction"
+      >
+        <text class="own-failed__btn-text">{{item.label}}</text>
+      </view>
+    </view>
+  </view>
+
   <view
     class="hold {{holdReady ? '' : 'hold--off'}} {{holding ? 'hold--on' : ''}}"
     bindtouchstart="onHoldStart"
@@ -109,12 +138,17 @@
   <view class="foot">
     <view class="foot__row">
       <text class="foot__progress">已标出 {{hookProgress}}</text>
-      <!-- 翻页入口已移到图两侧的箭头；最后一屏时在这里给一句收尾 -->
-      <text wx:if="{{isLastShot}}" class="foot__progress">三段示例已看完</text>
+      <!-- 翻页入口已移到图两侧的箭头；最后一屏时在这里给一句收尾（第四屏不算示例） -->
+      <text wx:if="{{isLastShot && !isOwn}}" class="foot__progress">三段示例已看完</text>
     </view>
-    <!-- 这一行常驻（还没标出时只是灰的），免得卡片入口忽然冒出来把页面顶一下 -->
-    <view class="foot__row foot__make {{canMakeCard ? '' : 'foot__make--off'}}" bindtap="onMakeCard">
+    <!-- 这一行常驻（还没标出时只是灰的），免得卡片入口忽然冒出来把页面顶一下。
+         第四屏整行先不渲染：卡片要跨页带图，7.4c 再接，不开一个「能点但打不开」的门 -->
+    <view wx:if="{{!isOwn}}" class="foot__row foot__make {{canMakeCard ? '' : 'foot__make--off'}}" bindtap="onMakeCard">
       <text class="foot__make-text">{{canMakeCard ? '生成一张卡片 ›' : '标出一处后可以做成卡片'}}</text>
+    </view>
+    <!-- 第三屏收尾的转折点：评委在这里变成参与者。三处都标完才出现 -->
+    <view class="own-entry" wx:if="{{showOwnEntry}}" bindtap="onEnterOwn">
+      <text class="own-entry__text">用你自己的图试一次 ›</text>
     </view>
   </view>
 

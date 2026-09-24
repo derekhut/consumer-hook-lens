@@ -31,7 +31,11 @@
   },
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "folder", "value": "tests" },
+      { "type": "folder", "value": "tools" },
+      { "type": "folder", "value": "cloudfunctions" }
+    ],
     "include": []
   },
   "editorSetting": {}

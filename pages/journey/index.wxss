@@ -284,3 +284,109 @@
 .foot__make--off .foot__make-text {
   color: var(--c-text-3);
 }
+
+/* ── 第四屏（用户自己的图）──────────────────────────── */
+
+/* 选图块：替代舞台的位置。它要一眼看出「这里可以按」，
+   所以用示例标注层的暖色当底 —— 和「点一下，看它在哪」是同一种邀请 */
+.own-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 82%;
+  margin: var(--sp-1) auto 0;
+  padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  box-sizing: border-box;
+  min-height: 560rpx;
+  border-radius: var(--r-md);
+  border: 2rpx dashed rgba(232, 163, 61, 0.55);
+  background: rgba(232, 163, 61, 0.1);
+}
+
+.own-pick__title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: var(--c-text);
+}
+
+.own-pick__hint {
+  margin-top: var(--sp-2);
+  font-size: 25rpx;
+  color: var(--c-text-3);
+}
+
+.own-pick__btn {
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--r-lg);
+  background: var(--c-accent);
+}
+
+.own-pick__btn-text {
+  font-size: 28rpx;
+  color: #ffffff;
+}
+
+/* 失败态块：站在引导条的位置。不红色警告、不弹窗 ——
+   它要说的是「这次没成，不是你的错，还有两条路」 */
+.own-failed {
+  margin: var(--sp-3) var(--sp-4) 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1rpx solid var(--c-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.own-failed__title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: var(--c-text);
+}
+
+.own-failed__hint {
+  margin-top: var(--sp-1);
+  font-size: 23rpx;
+  line-height: 1.5;
+  color: var(--c-text-3);
+  text-align: center;
+}
+
+.own-failed__actions {
+  display: flex;
+  margin-top: var(--sp-3);
+}
+
+.own-failed__btn {
+  padding: var(--sp-2) var(--sp-5);
+  margin: 0 var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1rpx solid var(--c-accent);
+}
+
+.own-failed__btn-text {
+  font-size: 25rpx;
+  color: var(--c-accent);
+}
+
+/* 第三屏收尾的入口：评委变成参与者的一步。
+   位置在卡片入口下面，措辞是邀请，不是任务 */
+.own-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64rpx;
+  margin-top: var(--sp-2);
+  border-radius: var(--r-md);
+  background: rgba(232, 163, 61, 0.12);
+  border: 1rpx solid rgba(232, 163, 61, 0.55);
+}
+
+.own-entry__text {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: var(--c-accent);
+}

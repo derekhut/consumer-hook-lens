@@ -78,6 +78,7 @@ utils/canvas-draw.js  把绘制计划画到 canvas 上（页面和离线预览�
 utils/annotations.js  归一化矩形校验（0–1 坐标、越界裁剪、转百分比样式）
 utils/swipe.js      图上左右滑动翻页的手势判别（起点终点进、方向出，纯函数）
 utils/detect-parse.js  模型返回的解析与校验（白名单、置信度、坐标、上限）—— 没界面，所以全靠脚本测
+utils/analyze.js   第四屏（用户自己的图）的状态、文案与映射 —— 「三种没有」是三句不同的话，在这里定
 assets/samples/    三段示例截图（已压到能进主包的体积）
 tests/             测试
 tools/             开发工具（不参与小程序运行）
@@ -136,7 +137,7 @@ node tools/preview-card.js 0 A1,B1  # 只出第一张示例、只标这两处
 | 纯逻辑 | 不碰界面、只吃参数吐结果的部分 | `check-hooks`、`check-reveal`、`check-annotations`、`check-hold` |
 | 排版 | 卡片的几何：折行、出界、压字、编号对不上 | `check-card` |
 | 数据 | 示例本身是否自洽（坐标合法、id 在词典里、热区不重叠） | `check-shots` |
-| 解析 | 模型返回的脏数据：白名单、置信度、坐标、与词典是否同步 | `check-detect-parse`、`check-detect-sync` |
+| 解析 | 模型返回的脏数据：白名单、置信度、坐标、与词典是否同步 | `check-detect-parse`、`check-detect-sync`、`check-analyze` |
 | 配置 | 产品名有没有漏改 | `check-brand` |
 | 文档 | PRD 里的词典表有没有和代码漂开；文档提到的文件是否还在 | `check-docs` |
 | 页面 | **页面状态机 + 画布渲染**。把 `Page`/`wx` 桩掉在 Node 里跑页面 | `check-page`、`check-page-card` |
