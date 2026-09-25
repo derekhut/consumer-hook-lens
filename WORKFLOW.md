@@ -80,6 +80,14 @@ git push origin main                        # origin = 自己的仓库
 - **推之前必须扫密钥**。公开仓库尤其；扫出来的命中要逐条看清是真的还是文档里描述特征的那行字；
 - 公司网络里 `git push` 挂住时，通常是代理问题——给 git 指定本机代理再推；
 - **两个远端**：`origin` 是你的仓库，另一个人推他自己的。同步对方的版本用 `git pull <对方远端> main`；
+- ⚠️ **同步失败时的绕法**（本机实测）：某些工作目录里 git 的 `unlink` 会被拒
+  （`unable to unlink old 'PRD.md': Operation not permitted`），`merge` / `reset --hard` /
+  `checkout` 全部失败，而 shell 的 `rm` 正常。做法：
+  ① 内容冲突手动合（两边改动是**共存**关系，不是二选一）；
+  ② 取对方的新文件用 `git checkout <对方远端>/main -- <路径>`（文件不存在时不需要 unlink）；
+  ③ 提交时造**双亲合并提交**，让 git 记住已经合过：
+  `git add -A` → `git write-tree` → `git commit-tree <tree> -p HEAD -p <对方远端>/main -m "…"` → `git update-ref HEAD <新提交>`。
+  少了这一步，下次同步会**重复冲突同一批文件**；
 - **仓库里的云函数代码 ≠ 云端在跑的版本**。改了云函数，必须重新部署（见第 4 步第 6 条）。
 
 ---
