@@ -187,28 +187,48 @@ suite.eq('文档里没有声称「本项目的 appid 就是占位值」', placeh
 // 实测漂了一处：TODO 阶段 7 那句「环境 ID `cloud1-…` 已填进 app.js」。
 // 这句话里真正有用的是「已填进 app.js」这个**指路**，具体值一个字都不必写。
 //
-// 这里只按形状扫（`cloud1-` 开头），**不把具体值写进测试** ——
-// 把值抄进测试文件等于又开了一个副本，守卫自己先漂了。
-const ENV_SHAPE = /cloud1-[a-z0-9]{8,}/;
+// 具体值**从 app.js 里读出来**，不写死在测试里（抄一份等于又开了一个副本，守卫自己先漂）。
+const ENV_DECL = /const\s+CLOUD_ENV\s*=\s*'([^']*)'/;
 
 // 只扫「给人看的、会被人照着改配置」的那几份文档
 const driftDocs = ['TODO.md', 'README.md', 'WORKFLOW.md', 'ONBOARDING.md'];
+const appSource = readDoc('app.js');
+const envMatch = ENV_DECL.exec(appSource);
+const envValue = envMatch ? envMatch[1] : '';
+
+// 反过来确认下面那条守卫不是空的：app.js 里确实得配着一个环境 ID。
+// 没有这条，守卫会在「有人把那行删了」时**更绿**（没值可扫，自然没漂）。
+suite.ok('app.js 里确实写着一个云开发环境 ID（否则下面那条守卫是空的）', envValue.length > 0);
+
+// ⚠️ **不按形状判断，只按「是不是占位符」判断**。
+// 第一版写的是按 `cloud1-` 这个形状扫 —— 那是本项目当时那一个环境的写法，
+// 不是云开发的通用写法。别人新建的环境 ID 换一种格式，守卫就会把他判成「没配环境」，
+// 而实际上他配好了 —— 守卫比它要守的规则更聪明，开始乱咬人，比没有守卫更糟。
+// 真正要挡的只有一件事：**配了但没换成自己的**（占位符躺在那里，跑起来静默失败）。
+const PLACEHOLDER = /REPLACE|TODO|CHANGEME|YOUR_ENV|填写|待填|改成你的|示例|xxx/i;
+const envLooksReal = envValue.length >= 8 && !PLACEHOLDER.test(envValue);
+suite.ok(
+  '环境 ID 不是占位符（' + envValue.length + ' 个字符；配了但没换掉，跑起来只会静默失败）',
+  envLooksReal
+);
+
+// 文档里不许出现这个值。两种扫法各管一半：
+//   ① 按**当前值**扫 —— 和 appid 那条一样，能抓住任何格式的新环境；
+//   ② 按**形状**扫 `cloud1-…` —— 能抓住「换过环境、文档里留着旧值」这种残留。
+// 只做 ① 会漏掉旧值；只做 ② 会漏掉新格式。
 const envRestated = [];
 driftDocs.forEach(function (name) {
   const text = readDoc(name);
   if (!text) return;
   text.split('\n').forEach(function (line, i) {
-    if (ENV_SHAPE.test(line)) {
+    const hitValue = envValue.length > 0 && line.indexOf(envValue) !== -1;
+    const hitShape = /cloud1-[a-z0-9]{8,}/.test(line);
+    if (hitValue || hitShape) {
       envRestated.push(name + ' 第 ' + (i + 1) + ' 行：' + line.trim());
     }
   });
 });
 suite.eq('文档里没有复述云开发环境 ID（值只在 app.js 里写一遍）', envRestated, []);
-
-// 反过来确认上面那条守卫不是空的：app.js 里确实得有一个环境 ID。
-// 没有这条，守卫会在「有人把 app.js 那行删了」时**更绿**（没值可扫，自然没漂）。
-const appSource = readDoc('app.js');
-suite.ok('app.js 里确实写着一个云开发环境 ID（否则上面那条守卫是空的）', ENV_SHAPE.test(appSource));
 
 // 顺带：这个环境 ID 必须真的被 wx.cloud.init 用上，不能只是躺着。
 // 「配了但没接上」是这一类配置最常见的失败方式，而且跑测试不会报错。
