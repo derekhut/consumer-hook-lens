@@ -1,0 +1,46 @@
+<!-- 主页：一句话说清产品，把人送进三段示例。
+     产品名和口号都来自 brand.js（页面里不写字面量）。 -->
+<view class="page">
+
+  <!-- 顶部：名字 + 一句话介绍。名字是个动作，副标题接着解释收什么手 —— 不说教，说机制。 -->
+  <view class="hero">
+    <text class="hero__name">{{appName}}</text>
+    <text class="hero__slogan">{{slogan}}</text>
+    <text class="hero__sub">它叫什么名字、怎么起作用 —— 看明白，再决定买不买。</text>
+  </view>
+
+  <!-- 中段：这条产品线怎么走。教 → 练 → 放手，最后按住只看商品 -->
+  <view class="steps">
+    <view class="step">
+      <text class="step__no">1</text>
+      <view class="step__body">
+        <text class="step__title">看</text>
+        <text class="step__desc">示例替你指出来：每处设计叫什么、怎么起作用</text>
+      </view>
+    </view>
+    <view class="step">
+      <text class="step__no">2</text>
+      <view class="step__body">
+        <text class="step__title">找</text>
+        <text class="step__desc">先替你标一处，剩下的自己点出来</text>
+      </view>
+    </view>
+    <view class="step">
+      <text class="step__no">3</text>
+      <view class="step__body">
+        <text class="step__title">放手</text>
+        <text class="step__desc">全靠自己找，看你能认出几处</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部：两个入口。主按钮进示例；上传是阶段 7 的事，诚实地置灰 -->
+  <view class="entry">
+    <button class="entry__main" bindtap="onStartExamples">开始三段示例</button>
+    <button class="entry__upload" disabled="{{!uploadReady}}">
+      上传自己的截图
+      <text class="entry__badge">即将上线</text>
+    </button>
+  </view>
+
+</view>

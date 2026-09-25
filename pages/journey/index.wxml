@@ -75,6 +75,15 @@
     </view>
   </view>
 
+  <!-- 引导条：第一次打开的人唯一的说明书。
+       位置在图片正下方、按住按钮上方 —— 操作区的第一眼，但不在页面最顶
+       （顶部方案试过，被否）。加粗 + 呼吸动画，让它自己往外跳，不靠用户找。 -->
+  <view class="guide {{allDone ? 'guide--done' : ''}}" wx:if="{{guide}}">
+    <view class="guide__dot"></view>
+    <text class="guide__text">{{guide}}</text>
+    <text class="guide__action" wx:if="{{skipLabel}}" bindtap="onRevealNext">{{skipLabel}}</text>
+  </view>
+
   <!-- 第四屏失败态：一句真话 + 两个出口。它站在引导条的位置说话，
        引导条此时是空的 —— 两处同时开口会互相抢 -->
   <view class="own-failed" wx:if="{{isOwn && ownNotice}}">
@@ -105,12 +114,6 @@
   <!-- 这行小字高度常驻（按住时为空也不塌），免得按住的瞬间整页往下跳 -->
   <view class="hold__hint">
     <text class="hold__hint-text">{{holdHint}}</text>
-  </view>
-
-  <!-- 引导条：第一次打开的人唯一的说明书。常驻、高亮，每一步都说清下一步干什么 -->
-  <view class="guide {{allDone ? 'guide--done' : ''}}" wx:if="{{guide}}">
-    <text class="guide__text">{{guide}}</text>
-    <text class="guide__action" wx:if="{{skipLabel}}" bindtap="onRevealNext">{{skipLabel}}</text>
   </view>
 
   <swiper
