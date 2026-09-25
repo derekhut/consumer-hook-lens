@@ -346,6 +346,20 @@ Page({
   ownProcess: function (imagePath) {
     this.ownImagePath = imagePath;
     this.ownFileID = '';
+    this.ownImageSize = null;
+    // 图幅是**换算像素坐标**的唯一依据：模型有时直接给 `{"x":264,...}` 这种像素值，
+    // 没有宽高就没法换成 0–1 比例，那些标注会被整条丢掉（界面于是显示「不太确定」）。
+    // 取不到也不算失败 —— 那时候像素坐标照旧判非法，宁可不画也不画错位。
+    const self = this;
+    wx.getImageInfo({
+      src: imagePath,
+      success: function (info) {
+        self.ownImageSize = { w: info && info.width, h: info && info.height };
+      },
+      fail: function () {
+        self.ownImageSize = null;
+      }
+    });
     const shot = analyze.ownShot({ image: imagePath, hooks: [] });
     if (!shot) {
       // 选图成功却没有路径是说不通的，但守一下：宁要诚实的失败，不要白屏
@@ -417,8 +431,13 @@ Page({
    * 所有分支都在 analyze.outcome 里，这里只负责「把结果接进页面」。
    */
   applyOwnResult: function (response) {
-    const r = analyze.outcome(response);
+    const r = analyze.outcome(response, { size: this.ownImageSize });
     this.ownOutcome = r;
+    // 丢掉的原因只有日志里有：界面上「不太确定」这句话背后，
+    // 可能是模型真没把握，也可能是我们自己的解析把结果扔了 —— 不打出来就只能靠猜
+    if (r.dropped && r.dropped.length) {
+      console.warn('[journey] 标注被丢掉：', r.dropped.join('、'));
+    }
     if (r.failed) {
       this.ownState = analyze.OWN_STATES.FAILED;
     } else {

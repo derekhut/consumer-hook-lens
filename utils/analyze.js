@@ -145,7 +145,8 @@ function guideForOwn(count) {
  *
  * @param {object} response 云函数 detect 的返回：{ source, annotations, attempts, failed, reason }
  */
-function outcome(response) {
+function outcome(response, options) {
+  const opts = options || {};
   if (!response || typeof response !== 'object') {
     return failedResult('bad-response');
   }
@@ -155,7 +156,8 @@ function outcome(response) {
     return failedResult(response.reason);
   }
 
-  const parsed = parseAnnotations(response.annotations);
+  // size 是图幅（像素宽高）：模型有时会直接给像素坐标，没有它换算不了
+  const parsed = parseAnnotations(response.annotations, { size: opts.size });
   if (!parsed.shapeOk) {
     // 连一份回答都算不上（不是数组、不是对象）。这不是「没问题」，是「没成功」
     return failedResult('bad-shape');
@@ -173,7 +175,10 @@ function outcome(response) {
       hooks: [],
       // 一处都没有时，那句话就放在引导条上 —— 用户的眼睛已经在那儿了
       guide: notice.title,
-      notice: notice
+      notice: notice,
+      // 丢弃原因**必须带出去**：界面上「不太确定」那句话背后可能是「模型没把握」，
+      // 也可能是「我们自己的坐标解析把它扔了」。两件事长一个样，不记下来就只能靠猜。
+      dropped: parsed.dropped
     };
   }
 
@@ -183,7 +188,8 @@ function outcome(response) {
     source: response.source,
     hooks: hooks,
     guide: guideForOwn(hooks.length),
-    notice: null
+    notice: null,
+    dropped: parsed.dropped
   };
 }
 

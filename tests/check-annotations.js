@@ -47,7 +47,38 @@ suite.eq('数组里高度过小返回 null', ann.normalizeRect([0.1, 0.1, 0.2, 0
 // 夹到 0–1 之后宽高必然被压成 0，于是判为非法、不画框。
 // 这是对的：按像素当比例画出来的框会盖满整屏，比不画糟得多。
 
-suite.eq('像素值被夹住后判为非法，不画错位框', ann.normalizeRect({ x: 264, y: 789, w: 130, h: 25 }), null);
+suite.eq('像素值但没给图幅 → 判非法，不画错位框', ann.normalizeRect({ x: 264, y: 789, w: 130, h: 25 }), null);
+
+// --- 像素坐标换算（给了图幅才敢换）---
+//
+// 模型经常直接给像素：实测同一批图，一次给 `{"x":0,"y":0.528,"w":1,"h":0.06}`，
+// 一次给 `[36,557,283,60]`。判据是「四个数里有一个 > 1」——比例值按定义不可能超过 1。
+// 不换的后果：36 被夹成 1、283 被夹成 1，宽高压成 0 → 整条判非法 → 整屏 0 标注，
+// 界面说「有几处它不太确定，先不标了」。看起来像模型没把握，其实是我们自己扔的。
+
+const SIZE = { w: 600, h: 900 };
+
+suite.eq('像素坐标按图幅换算成比例',
+  ann.normalizeRect({ x: 54, y: 450, w: 540, h: 90 }, SIZE), { x: 0.09, y: 0.5, w: 0.9, h: 0.1 });
+suite.eq('像素数组也换算',
+  ann.normalizeRect([36, 225, 300, 45], SIZE), { x: 0.06, y: 0.25, w: 0.5, h: 0.05 });
+suite.eq('图幅写成 {width,height} 也认',
+  ann.normalizeRect({ x: 54, y: 450, w: 540, h: 90 }, { width: 600, height: 900 }),
+  { x: 0.09, y: 0.5, w: 0.9, h: 0.1 });
+suite.eq('本来就是比例的，给了图幅也不动（不能被误当像素）',
+  ann.normalizeRect({ x: 0.1, y: 0.2, w: 0.5, h: 0.15 }, SIZE), { x: 0.1, y: 0.2, w: 0.5, h: 0.15 });
+suite.eq('像素值越界也要裁',
+  ann.normalizeRect({ x: 540, y: 810, w: 300, h: 180 }, SIZE), { x: 0.9, y: 0.9, w: 0.1, h: 0.1 });
+suite.eq('图幅非法（没有 / 0 / 负数）时不换算',
+  [ann.normalizeRect({ x: 54, y: 450, w: 540, h: 90 }),
+   ann.normalizeRect({ x: 54, y: 450, w: 540, h: 90 }, { w: 0, h: 900 }),
+   ann.normalizeRect({ x: 54, y: 450, w: 540, h: 90 }, { w: -600, h: 900 })],
+  [null, null, null]);
+suite.eq('换算后太小的框照样判非法', ann.normalizeRect({ x: 0, y: 0, w: 300, h: 9 }, SIZE), null);
+suite.eq('imageSize 认两种写法', [ann.imageSize({ w: 6, h: 9 }), ann.imageSize({ width: 6, height: 9 })],
+  [{ w: 6, h: 9 }, { w: 6, h: 9 }]);
+suite.ok('imageSize 拒绝非法输入',
+  ann.imageSize(null) === null && ann.imageSize({ w: 0, h: 1 }) === null && ann.imageSize('6x9') === null);
 
 // --- 太小的框没有意义，宁可不出这个框 ---
 

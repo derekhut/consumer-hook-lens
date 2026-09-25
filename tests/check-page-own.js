@@ -37,9 +37,13 @@ const calls = {
   choose: 0,
   upload: 0,
   detect: 0,
+  getImageInfo: 0,
   lastUpload: null, // { cloudPath, filePath }
   lastDetect: null  // { name, data }
 };
+
+/** 桩给的图幅。600×900 是压缩后的典型尺寸，改它就能模拟别的机型 */
+let imageInfoSize = { w: 600, h: 900 };
 
 const chooseQueue = [];
 const uploadQueue = [];
@@ -68,6 +72,11 @@ global.wx = {
   compressImage: function (opts) {
     if (opts && opts.success) opts.success({ tempFilePath: opts.src });
     else if (opts && opts.fail) opts.fail({});
+  },
+  // 图片信息桩：给一个固定图幅。模型直接给像素坐标时，换算成 0–1 比例全靠它
+  getImageInfo: function (opts) {
+    calls.getImageInfo += 1;
+    if (opts && opts.success) opts.success({ width: imageInfoSize.w, height: imageInfoSize.h });
   },
   cloud: {
     uploadFile: function (opts) {
@@ -309,6 +318,27 @@ pickThenDetect(unsure, {
 });
 suite.eq('全被筛掉 → 也是完成态（不是失败）', unsure.data.ownState, analyze.OWN_STATES.DONE);
 suite.eq('全被筛掉 → 说的是「不太确定，先不标了」', unsure.data.guide, UNSURE_TITLE);
+
+// ②b 模型给的是**像素坐标**（600×900 的图上，一处 540×90 的框）
+//
+// 这才是真机上最常发生的一种「看起来像没把握」：模型直接给 `{"x":36,...}` 这种像素值，
+// 换算需要图幅 —— 没有它，36 会被夹成 1、宽高被压成 0，整条判非法。
+// 界面于是说「不太确定，先不标了」，而实际上模型报得很清楚。
+
+const pixels = makePage();
+pixels.onLoad();
+pixels.goShot(2);
+for (let i = 0; i <= SHOTS[2].hooks.length; i++) pixels.onRevealNext();
+pickThenDetect(pixels, {
+  source: 'model',
+  annotations: [{ id: 'A1', rect: { x: 54, y: 450, w: 540, h: 90 }, confidence: 0.9 }]
+});
+suite.eq('像素坐标 → 照样出标注（不是「不太确定」）', pixels.data.ownState, analyze.OWN_STATES.DONE);
+suite.eq('像素坐标 → 图上有一处', pixels.data.shot.hooks.length, 1);
+// 写成 (…[0] || {}) 而不是直接取 [0]：换算一旦坏了，这条是**一条变红的断言**，
+// 而不是 `Cannot read properties of undefined` —— 后者会把整个套件带崩，看不出红在哪
+suite.eq('像素坐标 → 按比例换算过来了', (pixels.data.shot.hooks[0] || {}).rect, { x: 0.09, y: 0.5, w: 0.9, h: 0.1 });
+suite.ok('页面确实去问了图幅（换算像素坐标全靠它）', calls.getImageInfo > 0);
 
 // ③ 云函数自己兜底 → 失败态，不看它给了什么
 const fallback = makePage();

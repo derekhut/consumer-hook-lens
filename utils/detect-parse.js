@@ -20,7 +20,15 @@ const { normalizeRect } = require('./annotations');
  * 演示时「图上有 2 处框得很准」，比「6 处里混着两处框错」可信得多 ——
  * 准确率是感知出来的，不是算出来的。
  */
-const MIN_CONFIDENCE = 0.45;
+/**
+ * 2026-09-25 从 0.45 降到 0.30。
+ *
+ * 不是因为它拦错了什么 —— 实测下来模型给的把握都在 0.9 以上，**这层基本没拦过东西**。
+ * 降低它是给演示留点余量：提示词里已经写明「没把握就别报这一处」，模型自己会先筛一遍，
+ * 这层只是第二道。真正会整屏清空结果的是坐标解析（见 utils/annotations.js 的像素换算），
+ * 不是这一条。
+ */
+const MIN_CONFIDENCE = 0.3;
 
 /** 一张图上最多展示几处。再多，注意力会被摊平，底部卡片也排不下 */
 const MAX_ANNOTATIONS = 4;
@@ -87,7 +95,7 @@ function normalizeConfidence(v) {
  * 一条原始项 → 一条标注。不合格返回 { drop: 原因 }，
  * 原因会进日志（排查用），但不进界面。
  */
-function normalizeOne(item) {
+function normalizeOne(item, size) {
   if (!isPlainObject(item)) return { drop: 'not-an-object' };
 
   const id = item.patternId || item.id;
@@ -96,7 +104,7 @@ function normalizeOne(item) {
   // 也不要界面上出现一个点开没有解释的空框。
   if (!getHookPattern(id)) return { drop: 'unknown-pattern:' + id };
 
-  const rect = normalizeRect(item.rect);
+  const rect = normalizeRect(item.rect, size);
   if (!rect) return { drop: 'bad-rect:' + id };
 
   const confidence = normalizeConfidence(item.confidence);
@@ -127,6 +135,8 @@ function normalizeOne(item) {
 function parseAnnotations(raw, options) {
   const opts = options || {};
   const max = typeof opts.max === 'number' && opts.max > 0 ? opts.max : MAX_ANNOTATIONS;
+  // 图幅：模型有时直接给像素坐标，没有它就没法换算（见 utils/annotations.js）
+  const size = opts.size || null;
 
   const list = pickRawList(raw);
   if (!list) {
@@ -138,7 +148,7 @@ function parseAnnotations(raw, options) {
   const byId = {};
 
   for (let i = 0; i < list.length; i++) {
-    const one = normalizeOne(list[i]);
+    const one = normalizeOne(list[i], size);
     if (one.drop) {
       dropped.push(one.drop);
       continue;
