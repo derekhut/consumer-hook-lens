@@ -1,0 +1,227 @@
+/**
+ * 直连外部模型那条路（lib/model-http.js）。
+ *
+ * 这里一次网都不上：httpPost 是注入的，所以 200 / 403 / 乱 JSON / 超时 / 分段返回
+ * 全都能离线验。理由和 defense.js 注入 callModel 一样 —— 这是「没界面」的东西。
+ *
+ * 特别要守住的两条：
+ *   1. **403 必须看得见状态码**。现实里它最常见的意思是「免费额度用尽」，
+ *      只看「调用失败」四个字谁也猜不到；
+ *   2. **没配齐三个环境变量时不许发请求**，也不许悄悄退回内置模型 ——
+ *      那是「假装成功」的一个变种，由调用方（index.js）明确决定走哪条。
+ */
+
+const { createSuite } = require('./harness');
+const mh = require('../cloudfunctions/detect/lib/model-http');
+const defense = require('../cloudfunctions/detect/lib/defense');
+
+const suite = createSuite('check-model-http.js');
+
+const ENV = {
+  MODEL_BASE_URL: 'https://example.com/compatible-mode/v1',
+  MODEL_API_KEY: 'test-key-not-real',
+  MODEL_NAME: 'qwen3.8-omni-flash'
+};
+
+const PROMPT = '找出这张图里的诱导设计';
+const IMAGE = 'https://example.com/a.jpg';
+
+// ---------- 读配置 ----------
+
+suite.eq(
+  '三个环境变量都读到了',
+  mh.readConfig(ENV),
+  { baseUrl: ENV.MODEL_BASE_URL, apiKey: ENV.MODEL_API_KEY, model: ENV.MODEL_NAME }
+);
+
+suite.eq(
+  '端点尾部多余的斜杠会被去掉（否则拼出 /v1//chat/completions）',
+  mh.readConfig({ MODEL_BASE_URL: 'https://example.com/v1///' }).baseUrl,
+  'https://example.com/v1'
+);
+
+suite.eq('什么都没配时读到三个空串', mh.readConfig({}), { baseUrl: '', apiKey: '', model: '' });
+
+suite.ok('三个都齐了才算配好', mh.isConfigured(mh.readConfig(ENV)) === true);
+suite.ok('缺端点不算配好', mh.isConfigured({ apiKey: 'k', model: 'm' }) === false);
+suite.ok('缺 Key 不算配好', mh.isConfigured({ baseUrl: 'u', model: 'm' }) === false);
+suite.ok('缺模型名不算配好', mh.isConfigured({ baseUrl: 'u', apiKey: 'k' }) === false);
+
+// ---------- 发请求 ----------
+
+/** 记下每次调用，并按第几次返回预设的响应 */
+function makePost(responder) {
+  const calls = [];
+  const fn = function (url, headers, body, timeoutMs) {
+    calls.push({ url: url, headers: headers, body: body, timeoutMs: timeoutMs });
+    const r = responder(calls.length);
+    if (r && r.reject) return Promise.reject(r.reject);
+    return Promise.resolve(r);
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+function ok200(content) {
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ choices: [{ message: { content: content } }] })
+  };
+}
+
+function build(overrides) {
+  const opts = {
+    config: mh.readConfig(ENV),
+    prompt: PROMPT,
+    imageUrl: IMAGE
+  };
+  Object.keys(overrides || {}).forEach(function (k) { opts[k] = overrides[k]; });
+  return mh.createHttpCallModel(opts);
+}
+
+/**
+ * 调一次，把「正常返回」和「抛错」都收成同一个形状。
+ *
+ * 直接 await 一个会抛错的调用，结果是**整个套件崩掉**（看不到是哪一条红，
+ * 只看到脚本挂了）—— 那比一条变红的断言难查得多。所以这里统一接住。
+ */
+async function tryCall(callModel) {
+  try {
+    return { ok: true, text: await callModel(1) };
+  } catch (err) {
+    return { ok: false, msg: err && err.message };
+  }
+}
+
+async function main() {
+  // 一次正常返回
+  {
+    const post = makePost(function () { return ok200('{"annotations": []}'); });
+    const r = await tryCall(build({ httpPost: post }));
+    suite.eq('200 时把模型说的话原样带回来（解析是 defense 的事）', r.ok ? r.text : r.msg, '{"annotations": []}');
+
+    const call = post.calls[0];
+    suite.eq('拼出来的地址是「端点 + /chat/completions」', call.url, ENV.MODEL_BASE_URL + mh.CHAT_PATH);
+    suite.eq('Authorization 头带上了 Bearer', call.headers.Authorization, 'Bearer ' + ENV.MODEL_API_KEY);
+    suite.eq('请求体里的模型名用的是配置值', call.body.model, ENV.MODEL_NAME);
+
+    const content = call.body.messages[0].content;
+    suite.eq('消息里是两段：文字 + 图片', content.length, 2);
+    suite.eq('第一段是提示词', content[0], { type: 'text', text: PROMPT });
+    suite.eq('第二段是图片地址', content[1], { type: 'image_url', image_url: { url: IMAGE } });
+    suite.eq('超时传给了 httpPost（自己不管超时就会耗光整个函数）', call.timeoutMs, mh.DEFAULT_TIMEOUT_MS);
+  }
+
+  // omni 这类模型会分段返回
+  {
+    const post = makePost(function () {
+      return ok200([{ text: '前半' }, { text: '后半' }]);
+    });
+    const r = await tryCall(build({ httpPost: post }));
+    suite.eq('content 是数组时拼成一段（不处理会当成「模型没说话」）', r.ok ? r.text : r.msg, '前半后半');
+  }
+
+  // 403：现实里最常见的意思是免费额度用尽
+  {
+    const post = makePost(function () {
+      return { statusCode: 403, body: '{"error":{"message":"Free quota exhausted"}}' };
+    });
+    let msg = '';
+    try {
+      await build({ httpPost: post })();
+    } catch (err) {
+      msg = err.message;
+    }
+    suite.ok('403 会抛错（不能当成成功）', msg.length > 0);
+    suite.ok('错误信息里带着状态码 403（只看「调用失败」猜不到是额度问题）', msg.indexOf('403') !== -1);
+    suite.ok('错误信息里带着服务端给的原文片段', msg.indexOf('Free quota exhausted') !== -1);
+  }
+
+  // 其它非 2xx
+  {
+    const post = makePost(function () { return { statusCode: 500, body: 'boom' }; });
+    let msg = '';
+    try {
+      await build({ httpPost: post })();
+    } catch (err) {
+      msg = err.message;
+    }
+    suite.ok('500 也抛错，并且带上状态码', msg.indexOf('500') !== -1);
+  }
+
+  // 返回不是 JSON / 没有 content
+  {
+    const bad = makePost(function () { return { statusCode: 200, body: 'not json at all' }; });
+    let m1 = '';
+    try { await build({ httpPost: bad })(); } catch (err) { m1 = err.message; }
+    suite.ok('返回的不是 JSON 时抛错，且带原文片段', m1.indexOf('not json at all') !== -1);
+
+    const empty = makePost(function () { return { statusCode: 200, body: '{"choices":[{"message":{}}]}' }; });
+    let m2 = '';
+    try { await build({ httpPost: empty })(); } catch (err) { m2 = err.message; }
+    suite.ok('有 choices 但没有 content 时抛错', m2.indexOf('没有文本内容') !== -1);
+  }
+
+  // 网络层直接报错（超时/域名不通）
+  {
+    const post = makePost(function () { return { reject: new Error('模型请求超时（20000ms）') }; });
+    let msg = '';
+    try { await build({ httpPost: post })(); } catch (err) { msg = err.message; }
+    suite.eq('网络层的错误原样透传（不许吞掉换一句含糊的话）', msg, '模型请求超时（20000ms）');
+  }
+
+  // 没配齐时不许发请求
+  {
+    const post = makePost(function () { return ok200('{}'); });
+    let msg = '';
+    try {
+      await mh.createHttpCallModel({ httpPost: post, prompt: PROMPT, imageUrl: IMAGE })();
+    } catch (err) {
+      msg = err.message;
+    }
+    suite.ok('没配齐环境变量时明确报错', msg.indexOf('MODEL_') !== -1);
+    suite.eq('并且一次请求都没发出去（也没悄悄退回别的地方）', post.calls.length, 0);
+  }
+
+  // 超时值必须塞得进函数的 60 秒上限
+  suite.ok(
+    '默认超时不超过 55 秒（给换链接和写日志留余量，实测 ' + mh.DEFAULT_TIMEOUT_MS + 'ms）',
+    mh.DEFAULT_TIMEOUT_MS <= 55000 && mh.DEFAULT_TIMEOUT_MS > 0
+  );
+
+  // ---------- 和 defense 接起来 ----------
+
+  {
+    const post = makePost(function () { return ok200('{"annotations": [{"patternId":"A1"}]}'); });
+    const r = await defense.runDetect({
+      callModel: build({ httpPost: post }),
+      maxAttempts: 1,
+      log: function () {}
+    });
+    suite.eq('配上之后能跑通整条梯子', r.source, 'model');
+    suite.eq('标注原样带回（严格校验在客户端）', r.annotations.length, 1);
+  }
+
+  {
+    const post = makePost(function () { return { statusCode: 403, body: 'quota' }; });
+    const logs = [];
+    const r = await defense.runDetect({
+      callModel: build({ httpPost: post }),
+      maxAttempts: 1,
+      log: function (level, message, detail) { logs.push({ level: level, message: message, detail: detail }); }
+    });
+    suite.eq('403 时走诚实失败，不假装成功', r.source, 'fallback');
+    suite.eq('并且给空数组，不伪造标注', r.annotations, []);
+    suite.ok(
+      '403 的细节进了日志（真机上排查全靠它）',
+      logs.some(function (l) { return l.level === 'error' && l.message.indexOf('403') !== -1; })
+    );
+  }
+
+  suite.done();
+}
+
+main().catch(function (err) {
+  console.error('check-model-http.js 自己崩了：', err);
+  process.exit(1);
+});

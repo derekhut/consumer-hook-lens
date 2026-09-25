@@ -1,7 +1,9 @@
 /**
  * 识别云函数：截图的 fileID 进去，一组原始标注出来。
  *
- * 这里刻意**只做三件事**：换临时链接、问模型、跑四层防御。
+ * 这里刻意**只做三件事**：换临时链接、问模型、跑防御。
+ * 「问模型」有两条路（内置 / 直连），选哪条由有没有配那三个环境变量决定 ——
+ * 两条路的**返回形状完全一样**，所以后面的防御和界面都不知道（也不该知道）走了哪条。
  * 剩下的判断（白名单、坐标、置信度、去重、上限）全部交给客户端的
  * utils/detect-parse.js —— 那份代码客户端本来就有，而云函数上传时
  * **只打包自己这个目录**，require 不到上级的 utils/。与其在这里放一份副本
@@ -16,6 +18,7 @@ const tcb = require('@cloudbase/node-sdk');
 
 const { runDetect } = require('./lib/defense');
 const { buildDetectPrompt } = require('./lib/prompt');
+const { createHttpCallModel, readConfig, isConfigured } = require('./lib/model-http');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -57,20 +60,43 @@ exports.main = async function (event) {
     return { source: 'fallback', annotations: [], failed: true, reason: 'temp-url-failed' };
   }
 
-  // 凭证由云开发控制台保管（添加提供商时填的 API Key），代码里不出现任何 Key
-  const app = tcb.init({
-    env: tcb.SYMBOL_CURRENT_ENV,
-    // ⚠️ SDK 的请求超时默认只有 15 秒，实测 glm-5.3-flash 读一张截图要 25 秒以上。
-    // 函数上限是 60 秒（1~60），塞不下两次 27 秒的重试 —— 所以单次直接给 55 秒，
-    // 重试层关掉（maxAttempts: 1），把预算全部押在一次完整的模型调用上。
-    timeout: 55000
-  });
-  const ai = app.ai();
-  const model = ai.createModel(PROVIDER);
   const prompt = buildDetectPrompt();
 
-  const result = await runDetect({
-    callModel: async function () {
+  // 问模型有两条路：配齐了 MODEL_BASE_URL / MODEL_API_KEY / MODEL_NAME 就直连，
+  // 否则走云开发内置大模型。
+  //
+  // 这个判断放在**入口**而不是塞进 lib/，是因为它还决定了下面「60 秒怎么分」——
+  // 那是只有这里知道的事（函数超时上限），lib/ 那几个文件不该掺和。
+  const httpConfig = readConfig(process.env);
+  const useHttp = isConfigured(httpConfig);
+
+  let callModel;
+  let maxAttempts;
+
+  if (useHttp) {
+    // 实测直连单次 3 秒上下 —— 所以超时给 20 秒，并且**重试可以重新打开**：
+    // 两次最坏 40 秒，加上换临时链接和写日志，仍在函数的 60 秒上限里。
+    console.log('[detect] 走直连：' + httpConfig.model);
+    callModel = createHttpCallModel({
+      config: httpConfig,
+      prompt: prompt,
+      imageUrl: imageUrl,
+      timeoutMs: 20000
+    });
+    maxAttempts = 2;
+  } else {
+    console.log('[detect] 走云开发内置：' + MODEL);
+    // 凭证由云开发控制台保管（添加提供商时填的 API Key），代码里不出现任何 Key
+    const app = tcb.init({
+      env: tcb.SYMBOL_CURRENT_ENV,
+      // ⚠️ SDK 的请求超时默认只有 15 秒，实测 glm-5.3-flash 读一张截图要 25 秒以上。
+      // 函数上限是 60 秒（1~60），塞不下两次 27 秒的重试 —— 所以单次直接给 55 秒，
+      // 重试层关掉（maxAttempts: 1），把预算全部押在一次完整的模型调用上。
+      timeout: 55000
+    });
+    const ai = app.ai();
+    const model = ai.createModel(PROVIDER);
+    callModel = async function () {
       const res = await model.generateText({
         model: MODEL,
         // 注：试过给 glm 传 thinking:{type:'disabled'} 关深度思考，网关不认识该字段直接 400，
@@ -86,9 +112,13 @@ exports.main = async function (event) {
         ]
       });
       return res && res.text;
-    },
-    // 函数 60 秒上限塞不下第二次重试，只做一次完整调用（见上方 timeout 注释）
-    maxAttempts: 1,
+    };
+    maxAttempts = 1;
+  }
+
+  const result = await runDetect({
+    callModel: callModel,
+    maxAttempts: maxAttempts,
     log: function (level, message, detail) {
       if (level === 'error') console.error('[detect] ' + message, detail || '');
       else console.warn('[detect] ' + message, detail || '');
