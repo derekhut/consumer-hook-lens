@@ -19,6 +19,7 @@ const tcb = require('@cloudbase/node-sdk');
 const { runDetect } = require('./lib/defense');
 const { buildDetectPrompt } = require('./lib/prompt');
 const { createHttpCallModel, readConfig, isConfigured } = require('./lib/model-http');
+const { createImageLoader } = require('./lib/image');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -62,6 +63,33 @@ exports.main = async function (event) {
 
   const prompt = buildDetectPrompt();
 
+  // ── 先把图取到手里，再问模型 ──
+  //
+  // 之前是直接把临时链接交给模型，结果**两次都在 20 秒整超时**（日志里能看到）。
+  // 传链接等于让模型服务商去跨云下载腾讯的图 —— 那一段慢起来，我们这边只看到超时，
+  // 分不清是「它在下载」还是「它在想」。
+  // 现在自己下载（图就在云开发存储里，内网，快），把字节直接发过去，中间那一跳就没了。
+  //
+  // 两段**分开计时**并打进日志：下次再卡，一眼就知道是卡在取图还是卡在问模型。
+  const tImage = Date.now();
+  const loaded = await createImageLoader({
+    downloadFile: async function (id) {
+      const res = await cloud.downloadFile({ fileID: id });
+      return res && res.fileContent;
+    }
+  })(fileID);
+
+  let image = imageUrl;
+  if (loaded) {
+    image = 'data:' + loaded.mime + ';base64,' + loaded.base64;
+    console.log(
+      '[detect] 图已取到：' + Math.round(loaded.bytes / 1024) + 'KB，耗时 ' + (Date.now() - tImage) + 'ms'
+    );
+  } else {
+    // 退路：链接这条路已知会慢，但至少还能出结果 —— 留一句 warn，别让它悄悄发生
+    console.warn('[detect] 图没取到，退回临时链接（这条路已知会慢）');
+  }
+
   // 问模型有两条路：配齐了 MODEL_BASE_URL / MODEL_API_KEY / MODEL_NAME 就直连，
   // 否则走云开发内置大模型。
   //
@@ -80,7 +108,7 @@ exports.main = async function (event) {
     callModel = createHttpCallModel({
       config: httpConfig,
       prompt: prompt,
-      imageUrl: imageUrl,
+      image: image,
       timeoutMs: 20000
     });
     maxAttempts = 2;
@@ -106,7 +134,7 @@ exports.main = async function (event) {
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: imageUrl } }
+              { type: 'image_url', image_url: { url: image } }
             ]
           }
         ]
@@ -115,6 +143,25 @@ exports.main = async function (event) {
     };
     maxAttempts = 1;
   }
+
+  // 给每次模型调用记个耗时。
+  // 之前排那次「两次都在 20 秒整超时」，日志里只有「超时」两个字，看不出卡在哪一段 ——
+  // 有了这个数字，下次能直接分清是「它在下载图」还是「它在推理」。
+  const inner = callModel;
+  callModel = async function (attempt) {
+    const t = Date.now();
+    let ok = true;
+    try {
+      return await inner(attempt);
+    } catch (err) {
+      ok = false;
+      throw err;
+    } finally {
+      console.log(
+        '[detect] 第 ' + attempt + ' 次模型调用：' + (Date.now() - t) + 'ms，' + (ok ? '成功' : '失败')
+      );
+    }
+  };
 
   const result = await runDetect({
     callModel: callModel,

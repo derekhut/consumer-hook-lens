@@ -125,7 +125,9 @@ function extractContent(body) {
  * @param {object} options
  * @param {object} options.config      { baseUrl, apiKey, model }，默认读环境变量
  * @param {string} options.prompt      提示词全文
- * @param {string} options.imageUrl    图片的公网地址
+ * @param {string} options.image       图片 —— **两种都收**：公网 URL，或 data URI
+ *                                     （`data:image/jpeg;base64,……`）。
+ *                                     优先给 data URI：见下面那条实测。
  * @param {function} [options.httpPost] 注入用，测试里替换掉真实网络
  * @param {number}  [options.timeoutMs]
  */
@@ -135,7 +137,15 @@ function createHttpCallModel(options) {
   const httpPost = opts.httpPost || defaultHttpPost;
   const timeoutMs = opts.timeoutMs || DEFAULT_TIMEOUT_MS;
   const prompt = opts.prompt || '';
-  const imageUrl = opts.imageUrl || '';
+  const image = opts.image || '';
+
+  // ── 为什么默认是 data URI，而不是把链接交给模型 ──
+  // 实测：传微信 COS 的临时链接给模型，云函数里**两次都在 20 秒整超时** ——
+  // 请求发出去了，对端一个字没回。而同一套代码、同一张图，从本地传阿里云自己域名的
+  // 图片只要 2.7 秒。差别在于：传链接时是**让模型服务商去跨云下载腾讯的图**，
+  // 那一段卡住，我们这边只会看到「超时」，看不出是下载慢还是推理慢。
+  // 改成云函数自己下载（图就在云开发存储里，属于内网，快），再把字节直接发给模型，
+  // 中间就不存在「对端还要去别处取图」这一跳了。
 
   return function callModel(attempt) {
     if (!isConfigured(config)) {
@@ -151,7 +161,7 @@ function createHttpCallModel(options) {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: imageUrl } }
+            { type: 'image_url', image_url: { url: image } }
           ]
         }
       ]

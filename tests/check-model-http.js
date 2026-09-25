@@ -73,7 +73,7 @@ function build(overrides) {
   const opts = {
     config: mh.readConfig(ENV),
     prompt: PROMPT,
-    imageUrl: IMAGE
+    image: IMAGE
   };
   Object.keys(overrides || {}).forEach(function (k) { opts[k] = overrides[k]; });
   return mh.createHttpCallModel(opts);
