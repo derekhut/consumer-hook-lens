@@ -102,16 +102,27 @@ exports.main = async function (event) {
   let maxAttempts;
 
   if (useHttp) {
-    // 实测直连单次 3 秒上下 —— 所以超时给 20 秒，并且**重试可以重新打开**：
-    // 两次最坏 40 秒，加上换临时链接和写日志，仍在函数的 60 秒上限里。
-    console.log('[detect] 走直连：' + httpConfig.model);
+    //
+    // ── 为什么是「1 次、55 秒」而不是「2 次、20 秒」──
+    // 之前那套（2×20 秒）实测两次都在 20 秒整被打断、一个字节没收到。
+    // 根因不是网络，是模型默认开深度思考：非流式要等思考全部生成完才返回，
+    // 本地实测 18.1 秒（关掉思考后 2.5 秒）。20 秒的绳子正好卡在它脖子上 ——
+    // 重试一次只是再卡一次，两次用完仍然什么都没有。
+    // 现在关掉思考（见 lib/model-http.js 文件头），单次 2.5–4 秒，
+    // 所以把 60 秒的预算**整段押在一次调用上**，不再重试：慢到 55 秒的情况，
+    // 重试也不可能更快，重来一次只是把失败延后。
+    //
+    // 请求超时给 55 秒而不是写满 60：60 秒是**平台掐掉函数**的时限，
+    // 真卡到那一刻，函数被杀、日志里一行都没有 —— 留 5 秒给收尾，
+    // 至少能把「模型请求超时」这句话写进日志再返回。
+    console.log('[detect] 走直连：' + httpConfig.model + '，思考=' + httpConfig.reasoningEffort);
     callModel = createHttpCallModel({
       config: httpConfig,
       prompt: prompt,
       image: image,
-      timeoutMs: 20000
+      timeoutMs: 55000
     });
-    maxAttempts = 2;
+    maxAttempts = 1;
   } else {
     console.log('[detect] 走云开发内置：' + MODEL);
     // 凭证由云开发控制台保管（添加提供商时填的 API Key），代码里不出现任何 Key

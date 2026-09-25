@@ -26,6 +26,29 @@ suite.eq('undefined 返回 null', ann.normalizeRect(undefined), null);
 suite.eq('字符串返回 null', ann.normalizeRect('0.1,0.2'), null);
 suite.eq('负数坐标被夹到 0 后仍然合法', ann.normalizeRect({ x: -0.3, y: -0.1, w: 0.5, h: 0.3 }), { x: 0, y: 0, w: 0.5, h: 0.3 });
 
+// --- 数组形状的 rect：[x, y, w, h] ---
+//
+// 不是「顺手兼容」，是模型真的这么写（2026-09-25 实测 6 次里 1 次）。
+// 丢掉它的表现是「整张图 0 条标注」，看起来像「模型没看出问题」——
+// 是最难查的那类错，所以必须有断言守住。
+
+suite.eq('4 个数字的数组按 [x,y,w,h] 接受', ann.normalizeRect([0.1, 0.2, 0.5, 0.15]), { x: 0.1, y: 0.2, w: 0.5, h: 0.15 });
+suite.eq('数组与同义对象结果相同（语义确实一致）',
+  ann.normalizeRect([0.12, 0.563, 0.318, 0.037]),
+  ann.normalizeRect({ x: 0.12, y: 0.563, w: 0.318, h: 0.037 }));
+suite.eq('数组里的数字字符串也接受', ann.normalizeRect(['0.1', '0.2', '0.5', '0.2']), { x: 0.1, y: 0.2, w: 0.5, h: 0.2 });
+suite.eq('数组越界也要裁', ann.normalizeRect([0.8, 0.1, 0.5, 0.2]), { x: 0.8, y: 0.1, w: 0.2, h: 0.2 });
+suite.eq('数组长度不足返回 null', ann.normalizeRect([0.1, 0.2, 0.5]), null);
+suite.eq('空数组返回 null', ann.normalizeRect([]), null);
+suite.eq('数组里有非数字返回 null', ann.normalizeRect([0.1, 'abc', 0.5, 0.2]), null);
+suite.eq('数组里高度过小返回 null', ann.normalizeRect([0.1, 0.1, 0.2, 0.005]), null);
+
+// --- 模型偶尔直接给像素值（264 / 789 这种）---
+// 夹到 0–1 之后宽高必然被压成 0，于是判为非法、不画框。
+// 这是对的：按像素当比例画出来的框会盖满整屏，比不画糟得多。
+
+suite.eq('像素值被夹住后判为非法，不画错位框', ann.normalizeRect({ x: 264, y: 789, w: 130, h: 25 }), null);
+
 // --- 太小的框没有意义，宁可不出这个框 ---
 
 suite.eq('宽度过小返回 null', ann.normalizeRect({ x: 0.1, y: 0.1, w: 0.01, h: 0.2 }), null);

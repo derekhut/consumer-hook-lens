@@ -31,7 +31,7 @@ const IMAGE = 'https://example.com/a.jpg';
 suite.eq(
   '三个环境变量都读到了',
   mh.readConfig(ENV),
-  { baseUrl: ENV.MODEL_BASE_URL, apiKey: ENV.MODEL_API_KEY, model: ENV.MODEL_NAME }
+  { baseUrl: ENV.MODEL_BASE_URL, apiKey: ENV.MODEL_API_KEY, model: ENV.MODEL_NAME, reasoningEffort: 'none' }
 );
 
 suite.eq(
@@ -40,7 +40,19 @@ suite.eq(
   'https://example.com/v1'
 );
 
-suite.eq('什么都没配时读到三个空串', mh.readConfig({}), { baseUrl: '', apiKey: '', model: '' });
+suite.eq('什么都没配时读到三个空串，思考强度默认 none', mh.readConfig({}), { baseUrl: '', apiKey: '', model: '', reasoningEffort: 'none' });
+
+// ---------- 关思考（reasoning_effort）----------
+//
+// 这条是 2026-09-25 拿真模型、真图测出来的，不是猜的：
+//   不带该参数 → 18.1 秒，1372 个输出 token 里 1199 个在思考
+//   带 none     → 2.5 秒，182 个 token 全是正文
+// 非流式必须等思考全部生成完才返回，所以云函数那两次「20 秒整、0 字节」就是它。
+// 不设默认、或默认值写错，表现是「演示时每张图都超时」——必须守死。
+
+suite.eq('默认关思考', mh.readConfig(ENV).reasoningEffort, 'none');
+suite.eq('显式配成别的就按配的来', mh.readConfig({ MODEL_REASONING_EFFORT: 'low' }).reasoningEffort, 'low');
+suite.eq('显式配成空串表示「这个模型不吃这个参数」', mh.readConfig({ MODEL_REASONING_EFFORT: '' }).reasoningEffort, '');
 
 suite.ok('三个都齐了才算配好', mh.isConfigured(mh.readConfig(ENV)) === true);
 suite.ok('缺端点不算配好', mh.isConfigured({ apiKey: 'k', model: 'm' }) === false);
@@ -110,6 +122,20 @@ async function main() {
     suite.eq('第一段是提示词', content[0], { type: 'text', text: PROMPT });
     suite.eq('第二段是图片地址', content[1], { type: 'image_url', image_url: { url: IMAGE } });
     suite.eq('超时传给了 httpPost（自己不管超时就会耗光整个函数）', call.timeoutMs, mh.DEFAULT_TIMEOUT_MS);
+
+    // 关思考必须真的进了请求体 —— 少发这个字段，线上就是 18 秒起跳
+    suite.eq('请求体默认带 reasoning_effort: none', call.body.reasoning_effort, 'none');
+  }
+
+  // 换成不吃这个参数的模型时，字段要能整个消失（而不是发个空值过去）
+  {
+    const post = makePost(function () { return ok200('{}'); });
+    const cfg = mh.readConfig(Object.assign({}, ENV, { MODEL_REASONING_EFFORT: '' }));
+    await tryCall(mh.createHttpCallModel({ config: cfg, httpPost: post, prompt: PROMPT, image: IMAGE }));
+    suite.ok(
+      '配成空串时请求体里没有 reasoning_effort 字段',
+      !('reasoning_effort' in post.calls[0].body)
+    );
   }
 
   // omni 这类模型会分段返回

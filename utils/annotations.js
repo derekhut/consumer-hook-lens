@@ -26,9 +26,25 @@ function round(n) {
  * 校验并修正一个矩形。
  * 非法（缺字段、非数字、太小）返回 null —— 让调用方自己去处理，不要悄悄当成 0。
  * 数字字符串（'0.1'）是接受并转换的：模型返回 JSON 时经常这么写。
+ *
+ * 两种形状都收：对象 {x,y,w,h}，或 **4 个数字的数组 [x,y,w,h]**。
+ *
+ * 数组这条不是「顺手兼容各种写法」，是 2026-09-25 实测出来的：
+ * 同一张图、同一个模型、同一个倒计时条，一次给
+ *   {"x":0.12,"y":0.563,"w":0.318,"h":0.037}
+ * 一次给
+ *   [0.1,0.562,0.38,0.037]
+ * y 与 h 逐个对得上 —— 所以数组的语义**就是** [x,y,w,h]，和对象一致，
+ * 不是两角坐标 [x1,y1,x2,y2]（按两角读，这几个数会出现 y2 < y1 的负高度）。
+ * 6 次里出现 1 次。丢掉它，等于把一次可用结果说成「这张图没看出问题」。
  */
 function normalizeRect(rect) {
   if (!rect || typeof rect !== 'object') return null;
+
+  if (Array.isArray(rect)) {
+    if (rect.length < 4) return null;
+    return normalizeRect({ x: rect[0], y: rect[1], w: rect[2], h: rect[3] });
+  }
 
   const x = Number(rect.x);
   const y = Number(rect.y);

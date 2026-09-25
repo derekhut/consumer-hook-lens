@@ -14,7 +14,16 @@
  *   MODEL_BASE_URL  端点前缀，如 https://dashscope.aliyuncs.com/compatible-mode/v1
  *   MODEL_API_KEY   Bearer 令牌（**唯一敏感的一项**）
  *   MODEL_NAME      模型名，如 qwen3.8-omni-flash
- * 三个都配齐，这条才生效；缺一个就整体不走这里（由调用方决定退回哪条路）。
+ *   MODEL_REASONING_EFFORT  （可选）思考强度，默认 none —— 见下面「关思考」那条实测
+ * 前三个都配齐，这条才生效；缺一个就整体不走这里（由调用方决定退回哪条路）。
+ *
+ * ── 为什么默认关思考（reasoning_effort: 'none'）──
+ * 2026-09-25 实测同一张图、同一个 qwen3.8-omni-flash：
+ *   不带该参数 → 18.1 秒，输出 1372 token 里 1199 个是思考 token
+ *   带 none     → 2.5 秒，输出 182 token，全是正文
+ * 非流式请求必须等思考**全部生成完**才返回，所以「思考」在这一幕里是纯等待。
+ * 之前云函数两次都在 20 秒整超时、一个字节都没收到，就是它 —— 不是网络、不是 Key。
+ * 换个不吃这个参数的模型时，用 MODEL_REASONING_EFFORT 覆盖（留空则不带该字段）。
  *
  * ── 可验证 ──
  * httpPost 是**注入**进来的，所以整条链路能在 Node 里离线跑：200 / 403 / 乱 JSON /
@@ -42,7 +51,10 @@ function readConfig(env) {
     // 尾部斜杠去掉，免得拼出 /v1//chat/completions
     baseUrl: String(e.MODEL_BASE_URL || '').replace(/\/+$/, ''),
     apiKey: String(e.MODEL_API_KEY || ''),
-    model: String(e.MODEL_NAME || '')
+    model: String(e.MODEL_NAME || ''),
+    // 默认关思考（理由见文件头那条实测）。换成不吃这个参数的模型时把它配成空串，
+    // 请求体里就不会出现这个字段。
+    reasoningEffort: e.MODEL_REASONING_EFFORT !== undefined ? String(e.MODEL_REASONING_EFFORT) : 'none'
   };
 }
 
@@ -138,6 +150,9 @@ function createHttpCallModel(options) {
   const timeoutMs = opts.timeoutMs || DEFAULT_TIMEOUT_MS;
   const prompt = opts.prompt || '';
   const image = opts.image || '';
+  // undefined = 不带这个字段；其余值（含空串）原样传
+  const reasoningEffort =
+    opts.reasoningEffort !== undefined ? opts.reasoningEffort : config.reasoningEffort;
 
   // ── 为什么默认是 data URI，而不是把链接交给模型 ──
   // 实测：传微信 COS 的临时链接给模型，云函数里**两次都在 20 秒整超时** ——
@@ -166,6 +181,11 @@ function createHttpCallModel(options) {
         }
       ]
     };
+    // 只有非空字符串才发：留空 = 「这个模型不吃这个参数」，那就一个字别多给，
+    // 免得对端因为不认识的字段直接 400
+    if (typeof reasoningEffort === 'string' && reasoningEffort !== '') {
+      body.reasoning_effort = reasoningEffort;
+    }
 
     return httpPost(config.baseUrl + CHAT_PATH, { Authorization: 'Bearer ' + config.apiKey }, body, timeoutMs).then(
       function (res) {
